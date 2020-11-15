@@ -1,0 +1,56 @@
+// #3.0.2 (15.6.2009)
+	CountryPicker = function (bind_id, options) {
+		// default options
+		Object.extend(this, {
+			no_xml_update: false,
+			destination_object: false
+		});
+
+		// set provided options
+		this.setOptions(options);
+				
+		if (this.destination_object === false) {
+			this.destination_object = xmlPage;
+		}
+		
+		// the ID of element containing the company code
+		this.bind_id = bind_id;
+		
+		// create the controll by itself
+		var caller = this;
+		
+		$('#' + this.bind_id).autocomplete(country_list, {
+			delay: 0,
+			max: 5000,
+			minChars: 0,
+			scroll: true,
+			scrollHeight: 200,
+			width: '300px',
+			autoFill: false,
+			matchContains: 'word',
+			setResult: function(t) {
+				//var t = new String(val);
+                var p = t.indexOf(' ');
+				if (p < 0) {
+					return t;
+				}
+				var res = t.substr(0, p);
+                if (!caller.no_xml_update) {
+                    caller.destination_object.modifyItem(caller.bind_id, res);
+				}
+				return res;
+			},
+			afterBlur: function() {
+				if (!caller.no_xml_update) {
+					caller.destination_object.modifyItem(caller.bind_id, $('#' + caller.bind_id).val());
+				}
+			}
+		});
+	};
+	
+	CountryPicker.prototype.setOptions = function(options) {
+		for (var property in options) {
+			if (typeof(this[property]) != 'undefined') this[property] = options[property];
+		}
+	};
+	

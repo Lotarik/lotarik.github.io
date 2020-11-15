@@ -1,0 +1,379 @@
+// https://stackoverflow.com/questions/5306095/simple-jquery-javascript-method-to-escape-special-characters-in-string-for-reg
+RegExp.escape = function(text) {
+    return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
+}
+
+// back compatibility
+/*
+function drug_click() {}
+function drugs_mouse_over() {}
+function drugs_mouse_out() {}
+*/
+var Suggest = function(bind_id, options) {
+  // default options
+  $.extend(this, {
+    minchars: 3,
+    method: 'POST',
+    result_id: 'drugs',
+    timeout: 2500,
+    delay: 500,
+    offsetx: 0,
+    offsety: 15,
+    autoHeight: true, // max-height from height
+    notFoundLabel: '.. Not found ..',
+    showEmpty: false,
+    url: 'index.php?act=EskadraDrugList',
+    xsl: 'Common/drugs.xsl',
+    // nazov parametra, ktory sa posiela na server v ajax požiadavke a xml
+    paramName: "search",
+    // Používa sa pri unbind events, pri kliknutí na input ponechá zadané html eventy napr. "onchange"
+    omitEvents: [],
+    // Posiela dodatočné parametre na server
+    params: null,
+    // Funkcia ktorá vythiahne hodnotu podľa názvu parametra 
+    paramResolver: function(param) {
+      return $(xmlPage.xml.xmlDoc).find(param).text();
+    },
+    // mapovanie stlpcov tabulky na polozky v XML pre liek
+    // stlpce su mapovane od 0
+    item_mapping: [
+            'Gk22',
+            'Gk2x1'
+            ],
+      // index stlpca tabulky liekov, ktory obsahuje meno lieku
+    name_index: 0,
+    code_index: 1,
+    destination_object: false
+  }, options);
+  this.bind_id = bind_id;
+  this.search = "";
+  this.input_string = '';
+  this.matched = 0;
+  this.loading = false;
+  this.attrs = {};
+  this.mouseOverResult = false;
+
+  if (this.destination_object === false) {
+    this.destination_object = xmlPage;
+  }
+  
+  if(!this.paramName) {
+    this.paramName = this.result_id;
+  }
+  
+  $("#" + this.bind_id).attr("autocomplete", "off");
+  $("#" + this.bind_id).attr("autocomplete", "off");
+  
+  this.bindInput();
+}
+
+Suggest.prototype.bindInput = function() {  
+  var keymap = {
+    38: this.keyUp,
+    40: this.keyDown,
+    13: this.keyEnter,
+    27: this.keyEscape
+  };
+  
+  var ctx = this;
+  $("#" + this.bind_id)
+    .on("focus click", function(e) {
+      if($('#' + ctx.bind_id).val().length >= ctx.minchars) {
+        ctx.showSuggest();
+      }
+    })
+    .blur(function(event) {
+      if(ctx.mouseOverResult) {
+        $(this).focus();
+      }
+      else {
+        ctx.hideSuggest(true)
+      } 
+    })
+    .keyup(function(e) {
+      if(e.keyCode in keymap) return;
+      setTimeout(function() {
+        if ($('#' + ctx.bind_id).val().length < ctx.minchars)
+          ctx.hideSuggest();
+        else
+          ctx.showSuggest();
+      }, 0);
+    })
+    .keydown(function(e) {
+      if(e.keyCode in keymap && $('#' + ctx.result_id).is(":visible")) {
+        keymap[e.keyCode].bind(ctx)(e);
+        return false;
+      }
+      return true;
+    });
+}
+
+Suggest.prototype.bindResult = function() {
+  $("#" + this.result_id).width("auto");
+  if(this.autoHeight) {
+    $("#" + this.result_id).css("max-height", $("#" + this.result_id).css("height")).height("auto");
+  }
+  $("#" + this.result_id).css("width", "auto !important");
+  $("#" + this.result_id + " table").css("min-width", 
+    $("#" + this.bind_id).innerWidth() - ( $("#" + this.result_id).innerWidth() - $("#" + this.result_id).width() ) );
+    console.log( ( $("#" + this.result_id).outerWidth() - $("#" + this.result_id).innerWidth() ));
+  var ctx = this;
+  // BINDING
+  $("#" + this.result_id)
+    .removeAttr("onmouseover") // Compatibility with drugs.xsl and older drugs.js suggest
+    .removeAttr("onmouseout")  // Compatibility with drugs.xsl and older drugs.js suggest
+    .mouseover(function() {
+      ctx.mouseOverResult = true;
+    })
+    .mouseout(function() {
+      ctx.mouseOverResult = false;
+    })
+    .click(function() {
+      ctx.hideSuggest(true);
+    })    
+    .find("tr")
+      .removeAttr("onclick") // Compatibility with drugs.xsl and older drugs.js suggest
+      .mouseover(function() {
+        $("#" + ctx.result_id).find("tr.focus").removeClass("focus");
+        $(this).addClass("focus");
+      })
+      .click(function(e) {
+        ctx.insertData(this);
+      });
+}
+
+Suggest.prototype.keyUp = function(e) {
+  var focus = $("#" + this.result_id).find("tr.focus").removeClass("focus");
+  if(focus.length === 0 || focus.prev(":visible:not(.not-found)").length === 0) {
+     focus = $("#" + this.result_id).find("tr:visible:not(.not-found):last").addClass("focus");
+  }
+  else if(focus.prev(":visible").length > 0) {
+    focus = focus.removeClass("focus").prev(":visible:not(.not-found)").addClass("focus");
+  }
+  //$("#" + this.result_id).scrollTo(focus, {offset: {top:-100}});
+  console.log(focus.html());
+  if(focus.length > 0) {
+    $("#drugs").scrollTop(focus.get(0).offsetTop - 90);
+  }
+}
+
+
+Suggest.prototype.keyDown = function(e) {
+  var focus = $("#" + this.result_id);
+  if(focus)
+  
+  var focus = $("#" + this.result_id).find("tr.focus").removeClass("focus");
+  if(focus.length === 0 || focus.next(":visible:not(.not-found)").length === 0) {
+     focus = $("#" + this.result_id).find("tr:visible:not(.not-found):first").addClass("focus");
+  }
+  else if(focus.next(":visible").length > 0) {
+    //var next = focus.next(":visible:not(.not-found)");
+    //if(next.length > 0) {
+      focus = focus.removeClass("focus").next(":visible:not(.not-found)").addClass("focus");
+    //}
+  }
+  //$("#" + this.result_id).scrollTo(focus, {offset: {top:-100}});
+  if(focus.length > 0) {
+    $("#drugs").scrollTop(focus.get(0).offsetTop - 90);
+  }
+}
+
+Suggest.prototype.keyEnter = function(e) {
+  $("#" + this.result_id).find("tr.focus:visible").click();
+}
+
+Suggest.prototype.keyEscape = function(e) {
+  this.hideSuggest(true);
+}
+
+Suggest.prototype.buildRequestXml = function(params) {
+  var xml = "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n";
+  for (var name in params) {
+    if (params.hasOwnProperty(name)) {
+      var param = params[name];
+      xml += "<" + name;
+      for (var paramName in param) {
+        if (param.hasOwnProperty(paramName)) {
+          xml += " " + paramName + "=\"" + param[paramName] + "\"";
+        }
+      }
+      xml += "/>\n";
+    }
+  }
+  return xml;
+}
+
+Suggest.prototype.load = function() {                           
+    var r = new RegExp('^' + RegExp.escape(this.search), 'i');
+    var i = this.input_string.search(r);
+    if ((i >= 0) && (this.search.length >= this.minchars)) {
+      // the current search string is a  of the already loaded drugs list
+      return;
+    }
+  
+  if (this.loading) {
+    return;
+  }
+
+  // we need to fetch a new drug list
+  
+  var params = {};
+  params[this.paramName] = {
+    content: this.input_string,
+    inputid: this.bind_id
+  };
+
+  if(this.params) {
+    for(var name in this.params) {
+      if (this.params.hasOwnProperty(name)) {
+        //window.lastdrugsCallParams[name] = this.paramResolver(this.params[name]);
+        params[this.paramName][name] = this.paramResolver(this.params[name]); 
+      }
+    }
+  }
+
+  this.loading = true;  
+  var data = {};
+  data[this.paramName] = this.buildRequestXml(params);
+  
+  var context = this;
+  $.ajax({
+    type: this.method,
+    url: this.url,
+    dataType: 'XML',
+    data: data,
+    success: function(xml) {
+      context.updateXML(xml);
+      context.bindResult();
+      
+      context.search = context.input_string;
+      context.loading = false;
+      context.displaySuggest();
+    },
+    error: function(XMLHttpRequest, textStatus, errorThrown) {
+      context.loading = false;
+    }
+  });
+}
+
+Suggest.prototype.updateXML = function(xml) {
+  try {
+    var c = new XMLContainer(xml);
+    xslContainer = new XMLContainer(this.xsl);
+    c.XSLTransform(xslContainer, this.result_id, true);
+  } catch (e) {
+    alert('error updating ' + this.paramName + ' list: ' + e.message);
+  }
+}
+
+Suggest.prototype.filterSuggest = function() {
+  var re = new RegExp('^' + RegExp.escape(this.input_string), 'i');
+  var context = this;
+  this.matched = 0;
+
+  $('#' + this.result_id).find('tr').each(function() {
+    var tr = $(this);
+    var name = tr.children(':eq(' + context.name_index + ')').each(function(){
+      var name = $(this).text();
+      if (name && name.replace(/\s+/g, " ").search(re) >= 0) {
+        tr.show();
+        context.matched++;
+      } else {
+        tr.hide();
+      }
+    });
+  });
+}
+
+Suggest.prototype.displaySuggest = function() {
+  if (!this.loading) {
+    this.filterSuggest();
+    if (this.showEmpty || this.matched > 0) {
+      
+      var offset = $('#' + this.bind_id).offset();
+      offset.left += this.offsetx;
+      offset.top += this.offsety;
+
+      this.unbindElementAttributes();
+      $('#' + this.result_id).css({'top': (offset.top + 3) + 'px', 'left': (offset.left - 2) + 'px'}).show();
+      this.notFound(this.matched == 0);
+    }
+    else  {
+
+    }
+  }
+}
+
+Suggest.prototype.notFound = function(show) {
+  var nf = $('#' + this.result_id + ' .not-found');
+  if(show) {
+    if(nf.size() > 0) {
+      nf.show();
+    }
+    else {
+      $('#' + this.result_id + ' table').append("<tr class=\"not-found\"><td align=\"center\"><h2>" + this.notFoundLabel + "</h3></td></tr>");
+    }
+  }
+  else {
+    nf.hide();
+  }
+}
+
+Suggest.prototype.showSuggest = function() {
+  this.input_string = $('#' + this.bind_id).val();
+  this.load();
+  this.displaySuggest();
+}
+
+Suggest.prototype.hideSuggest = function(cancel) {
+  $('#' + this.result_id).hide();
+  this.rebindElementAttributes();
+}
+
+Suggest.prototype.insertData = function(src) {
+  var parent = $(this.destination_object.xml.xmlDoc).find('#' + this.bind_id).parent();
+  var tr = $(src).children('td');
+
+  for (i = 0; i < this.item_mapping.length; i++) {
+    if (this.item_mapping[i] != '') {
+      parent.find(this.item_mapping[i]).eq(0).text(tr.eq(i).text().trim());
+    }
+  }
+
+  var new_name = tr.eq(this.name_index).text();
+  new_name = new_name.trim();
+  $('#' + this.bind_id).val(new_name);
+  this.destination_object.saveState();
+  this.destination_object.reloadDocument();
+  
+  // fix for FF ... set the input to the text entered
+  $('#' + this.bind_id).val(new_name);
+  clearInterval(this.timer);
+  this.hideSuggest();
+  $("#" + this.bind_id).blur();
+}
+
+Suggest.prototype.unbindElementAttributes = function() { 
+  var el = $("#" + this.bind_id);
+  
+  var elAttr = el[0].attributes;
+  for(var i = 0, ilen = elAttr.length; i < ilen; i++) {
+    if(elAttr[i].name.indexOf("on") === 0 &&  this.omitEvents.indexOf(elAttr[i].name) < 0) {
+      this.attrs[elAttr[i].name] = elAttr[i].value;
+    }
+  }
+  
+  for(var attrName in this.attrs) {
+    el.removeAttr(attrName); 
+  }
+}
+
+Suggest.prototype.rebindElementAttributes = function() {
+  var el = $("#" + this.bind_id); 
+  
+  for(var attrName in this.attrs) {
+    el.attr(attrName, this.attrs[attrName]);
+  }
+  
+  this.attrs = {};
+}

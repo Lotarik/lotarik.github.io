@@ -1,0 +1,986 @@
+/**
+* Sprava xmlFormularu kompatibilna s IE11, Chrome, Firefox, Safari
+*
+* @version 3.1 (20191122)
+* @returns {Object}
+*/
+
+/* -------------------------------------------------------------------------------------------------- */
+Object.extend = function(destination, source) {
+  for (var property in source) {
+    destination[property] = source[property];
+  }
+  return destination;
+};
+/* -------------------------------------------------------------------------------------------------- */
+var Base64 = {
+  // private property
+  _keyStr : "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",
+  // public method for decoding
+  decode : function (input) {
+    var output = "";
+    var chr1, chr2, chr3;
+    var enc1, enc2, enc3, enc4;
+    var i = 0;
+    input = input.replace(/[^A-Za-z0-9\+\/\=]/g, "");
+    while (i < input.length) {
+      enc1 = this._keyStr.indexOf(input.charAt(i++));
+      enc2 = this._keyStr.indexOf(input.charAt(i++));
+      enc3 = this._keyStr.indexOf(input.charAt(i++));
+      enc4 = this._keyStr.indexOf(input.charAt(i++));
+
+      chr1 = (enc1 << 2) | (enc2 >> 4);
+      chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+      chr3 = ((enc3 & 3) << 6) | enc4;
+
+      output = output + String.fromCharCode(chr1);
+      if (enc3 != 64) {
+        output = output + String.fromCharCode(chr2);
+      }
+      if (enc4 != 64) {
+        output = output + String.fromCharCode(chr3);
+      }
+    }
+    output = Base64._utf8_decode(output);
+    return output;
+  },
+
+  // private method for UTF-8 decoding
+  _utf8_decode : function (utftext) {
+    var string = "";
+    var i = 0;
+    var c = c1 = c2 = 0;
+    while ( i < utftext.length ) {
+      c = utftext.charCodeAt(i);
+      if (c < 128) {
+        string += String.fromCharCode(c);
+        i++;
+      }
+      else if((c > 191) && (c < 224)) {
+        c2 = utftext.charCodeAt(i+1);
+        string += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
+        i += 2;
+      }
+      else {
+        c2 = utftext.charCodeAt(i+1);
+        c3 = utftext.charCodeAt(i+2);
+        string += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
+        i += 3;
+      }
+    }
+    return string;
+  }
+}
+
+/* -------------------------------------------------------------------------------------------------- */
+/* XMLContainer - trieda pre ukladanie a manipulaciu s XML                                            */
+XMLContainer = function(xml) {
+  this.update(xml);
+}
+
+XMLContainer.prototype.update = function(xml) {
+  // ak je to objek, tak predpokladame, ze uz je to XML dokument
+  if (typeof(xml) == 'object') {
+    this.xmlDoc = xml;
+  } else if (xml.substring(0,1) == '<') {
+    this.xmlDoc = this.getXMLFromString(xml);
+  } else {
+    this.xmlDoc = this.getXMLFromFile(xml);
+  }
+}
+
+XMLContainer.prototype.filterXMLString = function(txt) {
+  var txt2 = txt.replace(/\<![-]*\[CDATA\[/gi, '');
+  txt2 = txt2.replace(/\]\][-]*\>/gi, '');
+  // odstranenie medzier a novych riadkov
+  txt2 = txt2.replace(/[\t ]+</gi, '<');
+  return txt2.replace(/\>[\t ]+/gi, ">\n");
+}
+
+XMLContainer.prototype.getXMLFromString = function(txt){
+  var xmlDoc;
+  txt = this.filterXMLString(txt);
+
+  try { //IE
+    xmlDoc = new ActiveXObject('Microsoft.XMLDOM');
+    xmlDoc.async = 'false';
+    var temp = txt;
+    try{
+      xmlDoc.loadXML(temp);
+    }catch(e){
+      alert('XMLContainer.getXMLFromString:' + e.message);
+    }
+    return (xmlDoc);
+  } catch(e) {
+    try { //Firefox, Mozilla, Opera, etc.
+      parser = new DOMParser();
+      xmlDoc = parser.parseFromString(txt, 'application/xml');
+      return (xmlDoc);
+    } catch(e) {
+      throw ('XMLContainer.getXMLFromString:' + e.message);
+    }
+  }
+  return (null);
+}
+
+XMLContainer.loadXMLFromURL = function(url) {
+  var result = null;
+
+  $.ajax({
+    url: url,
+    async: false,
+    dataType: 'text',
+    success: function(data) {
+      result = data;
+    }
+  });
+
+  return result;
+}
+
+XMLContainer.prototype.getXMLFromFile = function(filename){
+  var xmlDoc = null;
+
+  try { //IE
+    xmlDoc = new ActiveXObject("Microsoft.XMLDOM");
+    xmlDoc.async = 'false';
+    xmlDoc.load(filename);
+    return (xmlDoc);
+  } catch(e) {
+    try{ //Firefox, Mozilla, Opera, etc.
+      var parser = new DOMParser();
+      xml_string = XMLContainer.loadXMLFromURL(filename);
+      xmlDoc = parser.parseFromString(xml_string, "text/xml");
+      return (xmlDoc);
+    }catch(e){
+      throw ('XMLContainer.getXMLFromFile:' + e.message);
+    }
+  }
+  return (null);
+}
+
+XMLContainer.prototype.XMLToString = function(element) {
+  element = element || this.xmlDoc;
+
+  if (element){
+    try{
+      var content;
+      try{
+        var serializer = new XMLSerializer();
+        content = serializer.serializeToString(element);
+      }catch (e){
+        content = element.xml;
+      }
+      return content;
+    }catch (e){
+      alert('XMLContainer.XMLToString:' + e.message);
+    }
+  }else{
+    return false;
+  }
+}
+
+XMLContainer.prototype.cleanElement = function(element){
+  while (element.childNodes.length>0) {
+    element.removeChild(element.lastChild);
+  }
+}
+
+XMLContainer.prototype.XSLTransform = function (xslContainer, targetID, replace) {
+  replace = replace || false;
+  var resultElement = $('#' + targetID);
+  if ((!xslContainer) || (!xslContainer.xmlDoc)) {
+    throw ('XMLContainer.XSLTransform:' + 'Unable to load XSL document');
+  }
+  if (!resultElement) {
+    throw ('XMLContainer.XSLTransform:' + 'Unable to find result element');
+  }
+
+  try {
+    // IE
+    if (window.ActiveXObject || "ActiveXObject" in window){
+      var cdata;
+      
+      // Use function [transformNode] on the XmlDocument, if browser (IE6, IE7, IE8) supports it
+      if (typeof (this.xmlDoc.transformNode) != "undefined") {
+        cdata = this.xmlDoc.transformNode(xslContainer.xmlDoc);
+      }
+      // Use function transform on the XsltProcessor used for IE9+ (which doesn't support [transformNode] any more) 
+      else {
+        var xslt = new ActiveXObject("Msxml2.XSLTemplate");
+        var xslDoc = new ActiveXObject("Msxml2.FreeThreadedDOMDocument");
+        xslDoc.loadXML(xslContainer.xmlDoc.xml);
+        xslt.stylesheet = xslDoc;
+        var xslProc = xslt.createProcessor();
+        xslProc.input = this.xmlDoc;
+        xslProc.transform();
+
+        cdata = xslProc.output;
+      }
+
+      if (!replace) {
+        resultElement.html(cdata);
+      } else {
+        if (resultElement.length > 0) {
+          resultElement.replaceWith(cdata);
+        } else {
+          $('body').append(cdata);
+        }
+      }
+    } // code for Mozilla, Firefox, Opera, etc.
+    else if (document.implementation && document.implementation.createDocument) {
+      var xsltProcessor = new XSLTProcessor();
+      xsltProcessor.importStylesheet(xslContainer.xmlDoc);
+      var resultDocument = xsltProcessor.transformToFragment(this.xmlDoc, document);
+      if (!replace) {
+        resultElement.empty().append(resultDocument);
+      } else {
+        var res = document.getElementById(targetID);
+        if (res) {
+          var p = res.parentNode;
+          p.removeChild(res);
+          p.appendChild(resultDocument);
+        } else {
+          $('body').append(resultDocument);
+        }
+      }
+    }
+    $('div[xmldata-jscript]').each(function(i) {
+        var code = $(this).html();
+        $(this).remove();
+        if (code != '') {
+            eval(code);
+        }
+    });
+  } catch (e) {
+    alert('XMLContainer.XSLTransform:' + e.message);
+  }
+}
+
+XMLContainer.prototype.escapeXML = function (txt) {
+  var re = new RegExp('"','g')
+  return txt.replace(re, '&quot;');
+}
+
+/* -------------------------------------------------------------------------------------------------- */
+/*
+ * Pri vytvoreni objektu je nutne konstruktoru zadat nazov hlavneho datoveho uzla v XML
+ * V options su ulozene dalsie nastavitelne parametre
+ */
+function XMLPage(mainNodeName, options) {
+  /* Verejne premenne triedy */
+  this.prevFocus = null;
+  this.prevFocusId = null;
+  this.lastx = 0;
+  this.lasty = 0;
+  this.xml = null;
+  this.mainNodeName = mainNodeName;
+  this.errors = new String();
+  this.maxId = 0;
+  this.modified = false;
+
+  // nastavitelne defaultne premenne
+  Object.extend(this, {
+    /* ID elementu vo vustypnom HTML, kam sa uklada vystup z XSL transformacie */
+    result_id: 'result',
+    /* ID elementu, ktory obsahuje text XML */
+    source_id: 'xmldata',
+    /* ID elementu, kam sa ukladaju chybove spravy */
+    message_id: 'message',
+    /* url kam sa odosiela formular */
+    url: '',
+    /* save as URL z na ktoru sa posiela formular pre stiahnutie */
+    save_as_url: '',
+    /* posiela sa formulár na tlačenie */
+    print_url: '',
+    /* URL na ktoru sa posle XML subor z lokalneho pocitaca pre nahranie ulozenej sentence */
+    load_url: '',
+
+    /* typ formatu dat pre nacitanie z vygenerovaneho HTML. Moze byt jednoz
+      plain: znamena ze XML he priamo neupravene vlozene do HTML
+      escaped: XML je do HTML vlozene oescapovane
+      base64: XML je zakodovane v base64
+    */
+    source_format: 'escaped',
+
+    /* URL na ktoru sa posle poziadavka pre znovuinicializaciu sentence */
+    reset_url: '',
+
+    /* metoda akou sa formular odosiela post/get */
+    method: 'post',
+    /* timeout pre ajax request v milisekundach */
+    timeout: 20000,
+    /* nazov post/get parametra do ktoreho sa XML pri odosielani naplni */
+    request_param_name: 'data',
+    /* xsl sablona pre zobrazenie XML */
+    xsl: 'form.xsl',
+    /* falg pre debugovanie */
+    debug: true,
+    /* funkcia, ktora sa zavola hned po odoslani formulara a prijati odpovede
+      * v tvare: function (status, xml_source) {
+      *     return true/false;
+      * }
+      *
+      * status - textova hodnota z tagu <status> z vysledneho XML, ak sa taky v XML nenachadza, tak je to prazdny retazec
+      * xml_source - cisty text XML vrateny zo servera
+      *
+      * ak funckia vrati true, prijaty formular sa zobrazi, ak vrati false, spracovavanie sa zastavi
+      * a prijate XML sa nezobrazi
+      * */
+    action_handler: true,
+    /* nazov tagu v prijatej XML odpovedi v ktorom je ulozeny status */
+    response_status_tag: 'status',
+    /* funkcia, ktora sa zavola vzdy po znovuzobrazeni XML pomocou XSL transformacie
+      * */
+    on_reload: true,
+    close_text_id: 'close_text',
+    text_id_on_no_close: ''
+  });
+
+  // nastavime premenne
+  this.setOptions(options);
+
+  var caller = this;
+
+  // set to reload the document at startup
+      $(document).ready(function() {
+        caller.loadInitial();
+        caller.reloadDocument();
+      });
+
+    window.onbeforeunload = function() {
+      if (caller.modified) {
+        var text = $('#' + caller.close_text_id).html();
+        return text;
+      }
+    };
+};
+
+XMLPage.prototype.resolveMaxID = function() {
+  var re = new RegExp('^[0-9]+$', 'i');
+  var ma = 0;
+
+  $(this.xml.xmlDoc).find('[id]').each(function() {
+    var id = $(this).attr('id');
+
+    if (id.search(re) >= 0) {
+      var iid = Number(id);
+      if (iid > ma) {
+        ma = iid;
+      }
+    }
+  });
+
+  this.maxId = ma;
+}
+
+XMLPage.prototype.setOptions = function(options) {
+  for (var property in options) {
+    if (typeof(this[property]) != 'undefined') this[property] = options[property];
+  }
+}
+
+XMLPage.prototype.loadInitial = function() {
+  var data = '';
+  data = $('#' + this.source_id).html();
+  if ((typeof data == 'undefined') || (data == '') || (data == null) || (jQuery.trim(data) == '')) {
+    try {
+      var e = document.getElementById(this.source_id);
+      data = e.innerHTML;
+    } catch (e) {
+      data = null;
+    }
+  }
+  if ((typeof data == 'undefined') || (data == '') || (data == null) || (jQuery.trim(data) == '')) {
+    // try to load the data with ajax
+    data = XMLContainer.loadXMLFromURL(document.location.href);
+  } else {
+    switch (this.source_format) {
+      case 'escaped': data = $("<div/>").html(data).text();
+          break;
+      case 'base64': data = Base64.decode(data);
+          break;
+      case 'plain':
+      default: break;
+    }
+  }
+
+  if ((typeof data == 'undefined') || (data == '') || (data == null) || (jQuery.trim(data) == '')) {
+    throw (new this.XMLPageException('Unable to load initial XML'));
+  }
+
+  $('#' + this.source_id).remove();
+
+  this.xml = new XMLContainer(data);
+
+  this.resolveMaxID();
+}
+
+XMLPage.prototype.addErrorMsg = function(text) {
+  alert(text);
+  this.errors += text + "\n";
+}
+
+XMLPage.prototype.putErrorMsgs = function(id) {
+  if (this.errors.length > 0) {
+    var elm = $(id);
+    if (elm) {
+      elm.html(this.errors)
+    } else {
+      alert(this.errors);
+    }
+  }
+}
+
+XMLPage.prototype.XMLPageException = function(message) {
+    if (typeof message == 'object') {
+      this.message = message.message;
+    }else{
+      this.message = message;
+    }
+    this.name = "XMLPageException";
+}
+
+/* ulozenie stavu stranky (focus & pozicia) */
+XMLPage.prototype.saveState = function(id) {
+  if (id) {
+    this.lastFocusId =  id;
+  }
+  this.xpos = $(document).scrollLeft();
+  this.ypos = $(document).scrollTop();
+}
+
+/* obnovenie stareho focusu - nefunguje spravne pod IE :( */
+XMLPage.prototype.restoreFocus = function() {
+  if (this.prevFocusId) {
+    var elm = $('#' + this.prevFocusId).eq(0);
+    try {
+      elm.focus();
+    } catch(e) {
+    }
+  }
+}
+
+/* obnovenie stavu stranky (focus & pozicia) */
+XMLPage.prototype.restoreState = function() {
+  if (this.xpos && this.ypos) {
+    $(document).scrollLeft(this.xpos);
+    $(document).scrollTop(this.ypos);
+  }
+  this.restoreFocus();
+  this.prevFocusId = this.lastfocus;
+}
+
+/* ulozi ID elementu, ktory stratil focus */
+XMLPage.prototype.lostFocus = function(ev, id) {
+  try{
+    this.prevFocus = ev.target;
+    this.prevFocusId = id;
+    this.saveState(this.prevFocusId);
+  }catch(e){
+    this.addErrorMsg(e.message);
+  }
+}
+
+/* viacmenej debug funkcia */
+XMLPage.prototype.checkForParseError = function(xmlDocument) {
+  var errorNamespace = 'http://www.mozilla.org/newlayout/xml/parsererror.xml';
+    var documentElement = xmlDocument.documentElement;
+    var parseError = { errorCode : 0 };
+    if (documentElement.nodeName == 'parsererror' && documentElement.namespaceURI == errorNamespace) {
+      parseError.errorCode = 1;
+      var sourceText = documentElement.getElementsByTagNameNS(errorNamespace, 'sourcetext')[0];
+      if (sourceText != null) {
+        parseError.srcText = sourceText.firstChild.data
+      }
+      parseError.reason = documentElement.firstChild.data;
+    }
+    return parseError;
+}
+
+/* transformuje XML data (xmlDocName) podla (xslDocName) do elementu (resultId)  */
+XMLPage.prototype.View = function() {
+  try{
+    var xslContainer = new XMLContainer(this.xsl);
+  }catch (e){
+    throw (new this.XMLPageException(e.message + "\n" + 'Can\'t read XSL template from \'' + this.xsl + '\''));
+  }
+
+  try {
+    this.xml.XSLTransform(xslContainer, this.result_id);
+  } catch (e) {
+    var errorMsg = e;
+    var messageElement = $('#' + this.message_id);
+
+    if (typeof e == "object") {
+      errorMsg = e.message;
+    }
+    var result = 0;
+    try {
+      result = this.checkForParseError(xslContainer.xmlDoc);
+    } catch(e) {
+      errorMsg = errorMsg + "'" + e.message + "'";
+    }
+    if (result.errorCode != 0) {
+      errorMsg = errorMsg + "''" + result.reason + "\r\n" + result.srcText+"''";
+    }
+    if (!messageElement) {
+      throw(new XMLPageException(e.message + "\n" +errorMsg));
+    }else{
+      messageElement.html(errorMsg + " '" + this.xml.xmlDoc + "'");
+    }
+  }
+  this.restoreState();
+}
+
+  XMLPage.prototype.reloadDocument = function () {
+    try{
+      this.View();
+    } catch(e) {
+      this.addErrorMsg('Error: ' + e.message);
+        this.putErrorMsgs("message");
+        return;
+    }
+    if (typeof this.on_reload == 'function') {
+      this.on_reload();
+    }
+    this.ieCheckCheckboxes();
+  }
+  
+  XMLPage.prototype.ieCheckCheckboxes = function() {
+    if(this.msieversion() !== false) {
+      var self = this;
+      $("#" + this.result_id).find("input:checked").each(function() {
+        var dataVal = $(self.xml.xmlDoc).find("#" + this.id).text();
+        if(typeof(dataVal) === "undefined" || dataVal === false || dataVal == "") {
+          this.checked = false; 
+        }
+      });
+    }
+  }
+
+  XMLPage.prototype.msieversion = function() {
+
+    var ua = window.navigator.userAgent;
+    var msie = ua.indexOf("MSIE ");
+
+    if (msie > 0 || !!navigator.userAgent.match(/Trident.*rv\:11\./))  // If Internet Explorer, return version number
+    {
+        return parseInt(ua.substring(msie + 5, ua.indexOf(".", msie)));
+    }
+    else  // If another browser, return 0
+    {
+      return false;
+    }
+  }  
+
+  /**
+  * Vrati textovu interpretaciu xml nodu
+  *
+  * @param id hladaneho nodu
+  */
+  XMLPage.prototype.getXmlNodeById = function(id) {
+    var node = $(this.xml.xmlDoc).find('#' + id).get(0);
+
+    if (typeof(node) == 'undefined') {
+      return '';
+    }
+
+    var xml = new XMLContainer(node);
+
+    return xml.XMLToString();
+  }
+
+  /**
+  * Zameni udaje v urcenom xml node
+  *
+  * @param id
+  * @param xml_data
+  */
+    XMLPage.prototype.updateXmlNodeById = function(id, xml_data) {
+    if (xml_data != ''){
+      if (!this.loadData(xml_data, id)) {
+        return false;
+      }
+    } else {
+      this.removeById(id);
+    }
+    this.reloadDocument();
+    this.restoreState();
+    return true;
+  }
+
+/* vrati nove id a upravi stare maxid   */
+  XMLPage.prototype.getNewId = function() {
+  this.maxId++;
+  return this.maxId;
+}
+
+$.fn.textNodes = function() {
+  var ret = [];
+  this.each( function() {
+      var fn = arguments.callee;
+      $(this).contents().each( function() {
+        if ( this.nodeType == 3 ) {
+          ret.push(this);
+        } else {
+          fn.apply($(this));
+        }
+      });
+  });
+  return $(ret);
+}
+
+XMLPage.prototype.addNew = function(id) {
+  var xmlDoc = this.xml.xmlDoc;
+  if (xmlDoc){
+    var caller = this;
+    $(xmlDoc).find('#' + id).each(function() {
+      var src = $(this);
+
+      caller.saveState();
+      var newElm = src.clone();
+
+      newElm.find('[id]').add(newElm).attr('id', function() {
+        return caller.getNewId();
+      });
+
+      newElm.textNodes().each(function () {
+        //FF
+        if (this.textContent) {
+          this.textContent = '';
+        }
+        //IE specific
+        if (this.text){
+          this.text = '';
+        }
+      });
+      newElm.insertAfter(src);
+      caller.modified = true;
+      caller.reloadDocument();
+    });
+  }
+}
+
+/*
+odstrani danu polozku
+- vstupne ID oznacuje ID elementu, ktory chceme odstranit
+- zmeny sa vykonavaju v ramci XML dokumentu
+*/
+XMLPage.prototype.removeItem = function(id) {
+  if (id == '') {
+    return;
+  }
+  this.saveState();
+  try {
+    $(this.xml.xmlDoc).find('#' + id).each(function() {
+      this.parentNode.removeChild(this);
+    });
+    this.modified = true;
+    this.reloadDocument();
+  } catch (e) {
+    this.addErrorMsg(e.message);
+    throw (new this.XMLPageException(e));
+  }
+}
+
+/*
+  funkcia hodnotu do atributu v XML dokumente s prislusnym ID retazcom
+*/
+XMLPage.prototype.modifyAttribute = function(id, attribute, value) {
+  if (id == '' && !attribute) {
+    return;
+  }
+  if (!value) {
+  var elm = $('#' + id);
+  if (elm.attr(attribute).length <= 0) {
+    return;
+  }
+  }
+  var caller = this;
+  $(this.xml.xmlDoc).find('#' + id).attr(attribute, value);
+}
+
+XMLPage.prototype.clear = function(id, caller) {
+  $(xmlPage.xml.xmlDoc).find("#" + id).find("*").each(function(i, el) {
+    if(caller && caller.id && caller.id === el.id) return;
+    if(el.childNodes.length > 1) return;
+    $(el).text('');
+  });
+  this.reloadDocument();
+}
+
+/*
+  funkcia ulozi zaslanu textovu hodnotu (alebo hodnotu html elementu) do XML dokumentu s prislusnym ID retazcom
+*/
+XMLPage.prototype.modifyItem = function(id, value) {
+  if (id == '' && !value) {
+    return;
+  }
+  
+  var elm = $('#' + id);
+  
+  if(elm.length > 0) {
+    if (typeof(value) === "undefined") {
+      value = elm.val(); 
+    }
+    
+    /* 
+     * Táto časť skontroluje #id vo formulári  
+     * a pokiaľ sa jeho hodnota nezhoduje 
+     * s hodnotou v XML tak ju nastaví.
+     */
+    if(elm.prop("tagName") == "input") {
+      if(elm.val() !== value) {
+        elm.val(value);
+      }
+    }
+    else {
+      if(elm.html() !== value) {
+        elm.text(value); 
+      }
+    }
+  }
+  
+  var caller = this;
+  $(this.xml.xmlDoc).find('#' + id).each(function() {
+    if ($(this).text() != value) {
+      caller.modified = true;
+      $(this).text(value);
+    }
+  });
+}
+
+XMLPage.prototype.modifyCombo = function(id, attr_name) {
+  if (id == '') {
+    return;
+  }
+
+  var elm = $('#' + id);
+  if (elm.length <= 0) {
+    return;
+  }
+  var value = elm.val();
+  //var text_value = $('#' + id + ' option:selected').text();
+  $(this.xml.xmlDoc).find('#' + id).text(value);
+  //$(this.xml.xmlDoc).find('#' + id).attr(attr_name, value);
+
+  this.modified = true;
+}
+
+XMLPage.prototype.modifyCheckbox = function(id, value) {
+  if (id == '' && !value) {
+    return;
+  }
+  if (!value) {
+  var elm = $('#' + id);
+  if (elm.length <= 0) {
+    return;
+  }
+  if(elm.attr('checked'))
+    value=1;
+  else
+    value=0;
+  }
+  $(this.xml.xmlDoc).find('#' + id).text(value);
+}
+
+/**
+* Nahradi dest_id nod z xml_data
+*
+* @param xml_data
+* @param dest_id
+*/
+XMLPage.prototype.loadData = function(xml_data, dest_id) {
+    var container = new XMLContainer(xml_data);
+    var selector = (this.main_node_id == '' ? this.main_node_name : '#' + this.main_node_id);
+    var source_selector = selector;
+
+    if (typeof(dest_id) != 'undefined') {
+      selector = '#' + dest_id;
+      source_selector = ':first';
+    }
+  if (this.xml.xmlDoc) {
+    try {
+      $(this.xml.xmlDoc).find(selector).each(function() {
+        var old_data = this;
+        $(container.xmlDoc).find(source_selector).each(function() {
+          old_data.parentNode.replaceChild(this, old_data);
+        });
+      });
+    } catch(e) {
+      throw(new this.XMLPageException('Error during node replacing: ' + e.message));
+    }
+  } else {
+    return false;
+  }
+  return true;
+}
+
+XMLPage.prototype.loadXMLFromResponse = function(xml_data) {
+  if (xml_data){
+    if (!this.loadData(xml_data)) {
+      return false;
+    }
+  }
+  // zobrazenie zmien
+  this.modified = false;
+  this.reloadDocument();
+  this.restoreState();
+  return true;
+}
+
+/*
+  odoslanie textoveho obsahu elementu na dane URL
+  - predpoklada sa XML obsah
+*/
+XMLPage.prototype.send = function() {
+  this.saveState();
+//    $.blockUI();
+  try {
+    var data = this.xml.xmlDoc.getElementsByTagName(this.mainNodeName).item(0);
+    var dataContainer = new XMLContainer(data);
+    var xml_data = '<?xml version="1.0" encoding="utf-8" ?>' + "\n" + dataContainer.XMLToString();
+  } catch (e) {
+    this.addErrorMsg(e.message);
+  }
+  var caller = this;
+
+  try {
+    var options = {
+      type: this.method,
+      url: this.url,
+      dataType: 'XML',
+      timeout: this.timeout,
+      success: function(xml) {
+//          $.unblockUI();
+        try {
+            caller.modified = false;
+          if (typeof(caller.action_handler) == 'function') {
+            var container = new XMLContainer(xml);
+            var status = $(container.xmlDoc).find(caller.response_status_tag).text();
+            if (!status) status = '';
+            var res = caller.action_handler(status, xml);
+            if (res == false) {
+              return;
+            }
+
+            if (status == '') {
+              if (caller.text_id_on_no_close != '') {
+                var alert_text = $('#' + caller.text_id_on_no_close).html();
+                if (alert_text != '') {
+                  alert(alert_text);
+                }
+              }
+            }
+          }
+          caller.loadXMLFromResponse(xml);
+        } catch (e) {
+          caller.addErrorMsg('Unable to process response: ' + e.message);
+        }
+
+      },
+      error: function (XMLHttpRequest, textStatus, errorThrown) {
+//          $.unblockUI();
+        caller.addErrorMsg("There was a problem with retrieving XML data from server!\nStatus code: \"" + textStatus + "\"\nError thrown: \"" + errorThrown + "\"");
+      }
+    };
+    eval('options.data = {' + this.request_param_name + ': xml_data}');
+    $.ajax(options);
+  } catch (e) {
+//      $.unblockUI();
+    caller.addErrorMsg('Error sending form: ' + e.message);
+  }
+}
+
+XMLPage.prototype.save_as = function() {
+  var last_modified = this.modified;
+  this.saveState();
+  this.modified = false;
+
+  try {
+    var data = this.xml.xmlDoc.getElementsByTagName(this.mainNodeName).item(0);
+    var dataContainer = new XMLContainer(data);
+    var xml_data = '<?xml version="1.0" encoding="utf-8" ?>' + "\n" + dataContainer.XMLToString();
+  } catch (e) {
+    this.addErrorMsg(e.message);
+  }
+  var caller = this;
+
+  $('#save_as').html('<form action="' + this.save_as_url + '" method="post" id="save_as_form"><textarea name="data" id="save_as_data"></textarea></form>');
+  $('#save_as_data').val(xml_data);
+  $('#save_as_form').submit();
+/*  
+  $form = $("<form method=\"post\" id=\"save_as_form\" />");
+  $form.attr("action", this.save_as_url);
+  $ta = $("<textarea name=\"data\" id=\"save_as_data\" />");
+  $ta.val(xml_data);
+  $form.append($ta);
+  $form.submit();
+*/
+}
+
+XMLPage.prototype.print = function() {
+  
+  var last_modified = this.modified;
+  this.saveState();
+  this.modified = false;
+
+  try {
+    var data = this.xml.xmlDoc.getElementsByTagName(this.mainNodeName).item(0);
+    var dataContainer = new XMLContainer(data);
+    var xml_data = '<?xml version="1.0" encoding="utf-8" ?>' + "\n" + dataContainer.XMLToString();
+  } catch (e) {
+    this.addErrorMsg(e.message);
+  }
+  var caller = this;
+  
+  $form = $("<form method=\"post\" />");
+  $form.attr("action", this.print_url);
+  $ta = $("<textarea name=\"data\" />");
+  $ta.val(xml_data);
+  $form.append($ta);
+  $form.submit();
+}
+
+XMLPage.prototype.reset = function() {
+  this.saveState();
+//    $.blockUI();
+  var caller = this;
+
+  try {
+    var options = {
+      type: this.method,
+      url: this.reset_url,
+      timeout: this.timeout,
+      data: '',
+      success: function(xml) {
+//          $.unblockUI();
+        try {
+            caller.modified = false;
+          caller.loadXMLFromResponse(xml);
+        } catch (e) {
+          caller.addErrorMsg('Unable to process response: ' + e.message);
+        }
+
+      },
+      error: function (XMLHttpRequest, textStatus, errorThrown) {
+//          $.unblockUI();
+        caller.addErrorMsg("There was a problem with retrieving XML data from server!\nStatus code: \"" + textStatus + "\"\nError thrown: \"" + errorThrown + "\"");
+      }
+    };
+    $.ajax(options);
+  } catch (e) {
+    caller.addErrorMsg('Error sending form: ' + e.message);
+  }
+}
+
+XMLPage.prototype.loadFromFile = function() {
+  $('#load_form').attr('action', this.load_url);
+    var conf = {
+        title: $('#load_form_title').html()
+    };
+
+    $('#load_form_container').dialog(conf);
+    $('#load_form_container').dialog('open');
+}

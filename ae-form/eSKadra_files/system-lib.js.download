@@ -1,0 +1,2347 @@
+(function ($) {
+    var m = {
+        '\b': '\\b',
+        '\t': '\\t',
+        '\n': '\\n',
+        '\f': '\\f',
+        '\r': '\\r',
+        '"' : '\\"',
+        '\\': '\\\\'
+    },
+    s = {
+        'array': function (x) {
+            var a = ['['], b, f, i, l = x.length, v;
+            for (i = 0; i < l; i += 1) {
+                v = x[i];
+                f = s[typeof v];
+                if (f) {
+                    v = f(v);
+                    if (typeof v == 'string') {
+                        if (b) {
+                            a[a.length] = ',';
+                        }
+                        a[a.length] = v;
+                        b = true;
+                    }
+                }
+            }
+            a[a.length] = ']';
+            return a.join('');
+        },
+        'boolean': function (x) {
+            return String(x);
+        },
+        'null': function (x) {
+            return "null";
+        },
+        'number': function (x) {
+            return isFinite(x) ? String(x) : 'null';
+        },
+        'object': function (x) {
+            if (x) {
+                if (x instanceof Array) {
+                    return s.array(x);
+                }
+                var a = ['{'], b, f, i, v;
+                for (i in x) {
+                    v = x[i];
+                    f = s[typeof v];
+                    if (f) {
+                        v = f(v);
+                        if (typeof v == 'string') {
+                            if (b) {
+                                a[a.length] = ',';
+                            }
+                            a.push(s.string(i), ':', v);
+                            b = true;
+                        }
+                    }
+                }
+                a[a.length] = '}';
+                return a.join('');
+            }
+            return 'null';
+        },
+        'string': function (x) {
+            if (/["\\\x00-\x1f]/.test(x)) {
+                x = x.replace(/([\x00-\x1f\\"])/g, function(a, b) {
+                    var c = m[b];
+                    if (c) {
+                        return c;
+                    }
+                    c = b.charCodeAt();
+                    return '\\u00' +
+                    Math.floor(c / 16).toString(16) +
+                    (c % 16).toString(16);
+                });
+            }
+            return '"' + x + '"';
+        }
+    };
+
+    $.toJSON = function(v) {
+        var f = isNaN(v) ? s[typeof v] : s['number'];
+        if (f) return f(v);
+    };
+
+    $.parseJSON = function(v, safe) {
+        if (safe === undefined) safe = $.parseJSON.safe;
+        if (safe && !/^("(\\.|[^"\\\n\r])*?"|[,:{}\[\]0-9.\-+Eaeflnr-u \n\r\t])+?$/.test(v))
+            return undefined;
+        return eval('('+v+')');
+    };
+
+    $.parseJSON.safe = false;
+
+})(jQuery);
+
+/*
+ * jQuery Autocomplete plugin 1.1
+ *
+ * Copyright (c) 2009 Jörn Zaefferer
+ *
+ * Dual licensed under the MIT and GPL licenses:
+ *   http://www.opensource.org/licenses/mit-license.php
+ *   http://www.gnu.org/licenses/gpl.html
+ *
+ * Revision: $Id: jquery.autocomplete.js 15 2009-08-22 10:30:27Z joern.zaefferer $
+ */
+
+/* string transliteration function */
+String.prototype.tr = function(from, to) {
+    var fromChars = from.split("");
+    var toChars = to.split("");
+
+    var mapTable = {};
+
+    for(i = 0; i < fromChars.length; i++) {
+        var c = i < toChars.length ? toChars[i] : "";
+        mapTable[fromChars[i]] = c;
+    }
+
+    var str = this;
+
+    var re = new RegExp(fromChars.join("|"), "g");
+    str = str.replace(re, function(c) {
+        return mapTable[c];
+    });
+
+    return str;
+};
+
+RegExp.prototype.escape = function(text) {
+    if (!arguments.callee.sRE) {
+        var specials = [
+        '/', '.', '*', '+', '?', '|',
+        '(', ')', '[', ']', '{', '}', '\\'
+        ];
+        arguments.callee.sRE = new RegExp(
+            '(\\' + specials.join('|\\') + ')', 'g'
+            );
+    }
+    return text.replace(arguments.callee.sRE, '\\$1');
+}
+
+RegExp.escape= function(s) {
+  return s.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+}; 
+
+String.prototype.getTranslitSK = function() {
+    return this.tr('ľščťžýáíéúäôňóĺ','lsctzyaieuaonol');
+};
+
+;(function($) {
+
+    $.fn.extend({
+        autocomplete: function(urlOrData, options) {
+            var isUrl = typeof urlOrData == "string";
+            options = $.extend({}, $.Autocompleter.defaults, {
+                url: isUrl ? urlOrData : null,
+                data: isUrl ? null : urlOrData,
+                delay: isUrl ? $.Autocompleter.defaults.delay : 10,
+                max: options && !options.scroll ? 10 : 150
+            }, options);
+
+            // if highlight is set to false, replace it with a do-nothing function
+            options.highlight = options.highlight || function(value) {
+                return value;
+            };
+
+            options.setResult = options.setResult || function(value) {
+                return value;
+            };
+            options.afterBlur = options.afterBlur || function() { };
+
+            // if the formatMatch option is not specified, then use formatItem for backwards compatibility
+            options.formatMatch = options.formatMatch || options.formatItem;
+
+            return this.each(function() {
+                new $.Autocompleter(this, options);
+            });
+        },
+        result: function(handler) {
+            return this.bind("result", handler);
+        },
+        search: function(handler) {
+            return this.trigger("search", [handler]);
+        },
+        flushCache: function() {
+            return this.trigger("flushCache");
+        },
+        setOptions: function(options){
+            return this.trigger("setOptions", [options]);
+        },
+        unautocomplete: function() {
+            return this.trigger("unautocomplete");
+        }
+    });
+
+    $.Autocompleter = function(input, options) {
+
+        var KEY = {
+            UP: 38,
+            DOWN: 40,
+            DEL: 46,
+            TAB: 9,
+            RETURN: 13,
+            ESC: 27,
+            COMMA: 188,
+            PAGEUP: 33,
+            PAGEDOWN: 34,
+            BACKSPACE: 8
+        };
+
+        // Create $ object for input element
+        var $input = $(input).attr("autocomplete", "off").addClass(options.inputClass);
+
+        var timeout;
+        var previousValue = "";
+        var cache = $.Autocompleter.Cache(options);
+        var hasFocus = 0;
+        var lastKeyPressCode;
+        var config = {
+            mouseDownOnSelect: false
+        };
+        var select = $.Autocompleter.Select(options, input, selectCurrent, config);
+
+        var blockSubmit;
+
+        // prevent form submit in opera when selecting with return key
+        $.browser.opera && $(input.form).bind("submit.autocomplete", function() {
+            if (blockSubmit) {
+                blockSubmit = false;
+                return false;
+            }
+        });
+
+        // only opera doesn't trigger keydown multiple times while pressed, others don't work with keypress at all
+        $input.bind(($.browser.opera ? "keypress" : "keydown") + ".autocomplete", function(event) {
+            // a keypress means the input has focus
+            // avoids issue where input had focus before the autocomplete was applied
+            hasFocus = 1;
+            // track last key pressed
+            lastKeyPressCode = event.keyCode;
+            switch(event.keyCode) {
+
+                case KEY.UP:
+                    event.preventDefault();
+                    if ( select.visible() ) {
+                        select.prev();
+                    } else {
+                        onChange(0, true);
+                    }
+                    break;
+
+                case KEY.DOWN:
+                    event.preventDefault();
+                    if ( select.visible() ) {
+                        select.next();
+                    } else {
+                        onChange(0, true);
+                    }
+                    break;
+
+                case KEY.PAGEUP:
+                    event.preventDefault();
+                    if ( select.visible() ) {
+                        select.pageUp();
+                    } else {
+                        onChange(0, true);
+                    }
+                    break;
+
+                case KEY.PAGEDOWN:
+                    event.preventDefault();
+                    if ( select.visible() ) {
+                        select.pageDown();
+                    } else {
+                        onChange(0, true);
+                    }
+                    break;
+
+                // matches also semicolon
+                case options.multiple && $.trim(options.multipleSeparator) == "," && KEY.COMMA:
+                case KEY.TAB:
+                case KEY.RETURN:
+                    if( selectCurrent() ) {
+                        // stop default to prevent a form submit, Opera needs special handling
+                        event.preventDefault();
+                        blockSubmit = true;
+                        return false;
+                    }
+                    break;
+
+                case KEY.ESC:
+                    select.hide();
+                    break;
+
+                default:
+                    clearTimeout(timeout);
+                    timeout = setTimeout(onChange, options.delay);
+                    break;
+            }
+        }).focus(function(){
+            // track whether the field has focus, we shouldn't process any
+            // results if the field no longer has focus
+            hasFocus++;
+            this.select();
+            onChange(0, true);
+        }).blur(function() {
+            hasFocus = 0;
+            if (!config.mouseDownOnSelect) {
+                hideResults();
+            }
+            options.afterBlur();
+        }).click(function() {
+            // show select when clicking in a focused field
+            if ( hasFocus++ > 0 && !select.visible() ) {
+                onChange(0, true);
+            }
+        }).bind("search", function() {
+            // TODO why not just specifying both arguments?
+            var fn = (arguments.length > 1) ? arguments[1] : null;
+            function findValueCallback(q, data) {
+                var result;
+                if( data && data.length ) {
+                    for (var i=0; i < data.length; i++) {
+                        if( data[i].result.toLowerCase() == q.toLowerCase() ) {
+                            result = data[i];
+                            break;
+                        }
+                    }
+                }
+                if( typeof fn == "function" ) fn(result);
+                else $input.trigger("result", result && [result.data, result.value]);
+            }
+            $.each(trimWords($input.val()), function(i, value) {
+                request(value, findValueCallback, findValueCallback);
+            });
+        }).bind("flushCache", function() {
+            cache.flush();
+        }).bind("setOptions", function() {
+            $.extend(options, arguments[1]);
+            // if we've updated the data, repopulate
+            if ( "data" in arguments[1] )
+                cache.populate();
+        }).bind("unautocomplete", function() {
+            select.unbind();
+            $input.unbind();
+            $(input.form).unbind(".autocomplete");
+        });
+
+
+        function selectCurrent() {
+            var selected = select.selected();
+            if( !selected )
+                return false;
+
+            var v = selected.result;
+            previousValue = v;
+
+            if ( options.multiple ) {
+                var words = trimWords($input.val());
+                if ( words.length > 1 ) {
+                    var seperator = options.multipleSeparator.length;
+                    var cursorAt = $(input).selection().start;
+                    var wordAt, progress = 0;
+                    $.each(words, function(i, word) {
+                        progress += word.length;
+                        if (cursorAt <= progress) {
+                            wordAt = i;
+                            return false;
+                        }
+                        progress += seperator;
+                    });
+                    words[wordAt] = v;
+                    // TODO this should set the cursor to the right position, but it gets overriden somewhere
+                    //$.Autocompleter.Selection(input, progress + seperator, progress + seperator);
+                    v = words.join( options.multipleSeparator );
+                }
+                v += options.multipleSeparator;
+            }
+
+            $input.val(options.setResult(v));
+            hideResultsNow();
+
+            $input.trigger("result", [selected.data, selected.value]);
+            return true;
+        }
+
+        function onChange(crap, skipPrevCheck) {
+            if( lastKeyPressCode == KEY.DEL ) {
+                select.hide();
+                return;
+            }
+
+            var currentValue = $input.val();
+
+            if ( !skipPrevCheck && currentValue == previousValue )
+                return;
+
+            previousValue = currentValue;
+
+            currentValue = lastWord(currentValue);
+            if ( currentValue.length >= options.minChars) {
+                $input.addClass(options.loadingClass);
+                if (!options.matchCase)
+                    currentValue = currentValue.toLowerCase();
+                request(currentValue, receiveData, hideResultsNow);
+            } else {
+                stopLoading();
+                select.hide();
+            }
+        };
+
+        function trimWords(value) {
+            if (!value)
+                return [""];
+            if (!options.multiple)
+                return [$.trim(value)];
+            return $.map(value.split(options.multipleSeparator), function(word) {
+                return $.trim(value).length ? $.trim(word) : null;
+            });
+        }
+
+        function lastWord(value) {
+            if ( !options.multiple )
+                return value;
+            var words = trimWords(value);
+            if (words.length == 1)
+                return words[0];
+            var cursorAt = $(input).selection().start;
+            if (cursorAt == value.length) {
+                words = trimWords(value)
+            } else {
+                words = trimWords(value.replace(value.substring(cursorAt), ""));
+            }
+            return words[words.length - 1];
+        }
+
+        // fills in the input box w/the first match (assumed to be the best match)
+        // q: the term entered
+        // sValue: the first matching result
+        function autoFill(q, sValue){
+            // autofill in the complete box w/the first match as long as the user hasn't entered in more data
+            // if the last user key pressed was backspace, don't autofill
+            if( options.autoFill && (lastWord($input.val()).toLowerCase() == q.toLowerCase()) && lastKeyPressCode != KEY.BACKSPACE ) {
+                // fill in the value (keep the case the user has typed)
+                $input.val($input.val() + sValue.substring(lastWord(previousValue).length));
+                // select the portion of the value not typed by the user (so the next character will erase)
+                $(input).selection(previousValue.length, previousValue.length + sValue.length);
+            }
+        };
+
+        function hideResults() {
+            clearTimeout(timeout);
+            timeout = setTimeout(hideResultsNow, 200);
+        };
+
+        function hideResultsNow() {
+            var wasVisible = select.visible();
+            select.hide();
+            clearTimeout(timeout);
+            stopLoading();
+            if (options.mustMatch) {
+                // call search and run callback
+                $input.search(
+                    function (result){
+                        // if no value found, clear the input box
+                        if( !result ) {
+                            if (options.multiple) {
+                                var words = trimWords($input.val()).slice(0, -1);
+                                $input.val( words.join(options.multipleSeparator) + (words.length ? options.multipleSeparator : "") );
+                            }
+                            else {
+                                $input.val( "" );
+                                $input.trigger("result", null);
+                            }
+                        }
+                    }
+                    );
+            }
+        };
+
+        function receiveData(q, data) {
+            if ( data && data.length && hasFocus ) {
+                stopLoading();
+                select.display(data, q);
+                autoFill(q, data[0].value);
+                select.show();
+            } else {
+                hideResultsNow();
+            }
+        };
+
+        function request(term, success, failure) {
+            if (!options.matchCase)
+                term = term.toLowerCase();
+            var data = cache.load(term);
+            // recieve the cached data
+            if (data && data.length) {
+                success(term, data);
+            // if an AJAX url has been supplied, try loading the data now
+            } else if( (typeof options.url == "string") && (options.url.length > 0) ){
+
+                var extraParams = {
+                    timestamp: +new Date()
+                };
+                $.each(options.extraParams, function(key, param) {
+                    extraParams[key] = typeof param == "function" ? param() : param;
+                });
+
+                $.ajax({
+                    // try to leverage ajaxQueue plugin to abort previous requests
+                    mode: "abort",
+                    // limit abortion to this input
+                    port: "autocomplete" + input.name,
+                    dataType: options.dataType,
+                    url: options.url,
+                    data: $.extend({
+                        q: lastWord(term),
+                        limit: options.max
+                    }, extraParams),
+                    success: function(data) {
+                        var parsed = options.parse && options.parse(data) || parse(data);
+                        cache.add(term, parsed);
+                        success(term, parsed);
+                    }
+                });
+            } else {
+                // if we have a failure, we need to empty the list -- this prevents the the [TAB] key from selecting the last successful match
+                select.emptyList();
+                failure(term);
+            }
+        };
+
+        function parse(data) {
+            var parsed = [];
+            var rows = data.split("\n");
+            for (var i=0; i < rows.length; i++) {
+                var row = $.trim(rows[i]);
+                if (row) {
+                    row = row.split("|");
+                    parsed[parsed.length] = {
+                        data: row,
+                        value: row[0],
+                        result: options.formatResult && options.formatResult(row, row[0]) || row[0]
+                    };
+                }
+            }
+            return parsed;
+        };
+
+        function stopLoading() {
+            $input.removeClass(options.loadingClass);
+        };
+
+    };
+
+    $.Autocompleter.defaults = {
+        inputClass: "ac_input",
+        resultsClass: "ac_results",
+        loadingClass: "ac_loading",
+        minChars: 1,
+        delay: 400,
+        matchCase: false,
+        matchSubset: true,
+        matchContains: false,
+        cacheLength: 10,
+        max: 100,
+        mustMatch: false,
+        extraParams: {},
+        selectFirst: true,
+        formatItem: function(row) {
+            return row[0];
+        },
+        formatMatch: null,
+        autoFill: false,
+        width: 0,
+        multiple: false,
+        multipleSeparator: ", ",
+        highlight: function(value, term) {
+            //		return value.replace(new RegExp("(?![^&;]+;)(?!<[^<>]*)(" + term.replace(/([\^\$\(\)\[\]\{\}\*\.\+\?\|\\])/gi, "\\$1") + ")(?![^<>]*>)(?![^&;]+;)", "gi"), "<strong>$1</strong>");
+            return value.replace(new RegExp("^(" + term.replace(/([\^\$\(\)\[\]\{\}\*\.\+\?\|\\])/gi, "\\$1") + ")", "gi"), "<strong>$1</strong>");
+        },
+        scroll: true,
+        scrollHeight: 180
+    };
+
+    $.Autocompleter.Cache = function(options) {
+
+        var data = {};
+        var length = 0;
+
+        function matchSubset(s, sub) {
+            if (!options.matchCase)
+                s = s.toLowerCase();
+
+            s = s.getTranslitSK();
+
+            var i = s.indexOf(sub);
+            if (options.matchContains == "word"){
+                var sub_esc = RegExp.escape(sub.toLowerCase());
+                i = s.toLowerCase().search("\\b" + sub_esc);
+            }
+            if (i == -1) return false;
+            return i == 0 || options.matchContains;
+        };
+
+        function add(q, value) {
+            if (length > options.cacheLength){
+                flush();
+            }
+            if (!data[q]){
+                length++;
+            }
+            data[q] = value;
+        }
+
+        function populate(){
+            if( !options.data ) return false;
+            // track the matches
+            var stMatchSets = {},
+            nullData = 0;
+
+            // no url was specified, we need to adjust the cache length to make sure it fits the local data store
+            if( !options.url ) options.cacheLength = 1;
+
+            // track all options for minChars = 0
+            stMatchSets[""] = [];
+
+            // loop through the array and create a lookup structure
+            for ( var i = 0, ol = options.data.length; i < ol; i++ ) {
+                var rawValue = options.data[i];
+                // if rawValue is a string, make an array otherwise just reference the array
+                rawValue = (typeof rawValue == "string") ? [rawValue] : rawValue;
+
+                var value = options.formatMatch(rawValue, i+1, options.data.length);
+                if ( value === false )
+                    continue;
+
+                var firstChar = value.charAt(0).toLowerCase();
+                // if no lookup array for this character exists, look it up now
+                if( !stMatchSets[firstChar] )
+                    stMatchSets[firstChar] = [];
+
+                // if the match is a string
+                var row = {
+                    value: value,
+                    data: rawValue,
+                    result: options.formatResult && options.formatResult(rawValue) || value
+                };
+
+                // push the current match into the set list
+                stMatchSets[firstChar].push(row);
+
+                // keep track of minChars zero items
+                if ( nullData++ < options.max ) {
+                    stMatchSets[""].push(row);
+                }
+            };
+
+            // add the data items to the cache
+            $.each(stMatchSets, function(i, value) {
+                // increase the cache size
+                options.cacheLength++;
+                // add to the cache
+                add(i, value);
+            });
+        }
+
+        // populate any existing data
+        setTimeout(populate, 25);
+
+        function flush(){
+            data = {};
+            length = 0;
+        }
+
+        return {
+            flush: flush,
+            add: add,
+            populate: populate,
+            load: function(q) {
+                if (!options.cacheLength || !length)
+                    return null;
+                /*
+			 * if dealing w/local data and matchContains than we must make sure
+			 * to loop through all the data collections looking for matches
+			 */
+                if( !options.url && options.matchContains ){
+                    // track all matches
+                    var csub = [];
+                    // loop through all the data grids for matches
+                    q = q.getTranslitSK();
+                    for( var k in data ){
+                        // don't search through the stMatchSets[""] (minChars: 0) cache
+                        // this prevents duplicates
+                        if( k.length > 0 ){
+                            var c = data[k];
+                            $.each(c, function(i, x) {
+                                // if we've got a match, add it to the array
+                                if (matchSubset(x.value, q)) {
+                                    csub.push(x);
+                                }
+                            });
+                        }
+                    }
+                    return csub;
+                } else
+                // if the exact item exists, use it
+                if (data[q]){
+                    return data[q];
+                } else
+                if (options.matchSubset) {
+                    for (var i = q.length - 1; i >= options.minChars; i--) {
+                        var c = data[q.substr(0, i)];
+                        if (c) {
+                            var csub = [];
+                            $.each(c, function(i, x) {
+                                if (matchSubset(x.value, q)) {
+                                    csub[csub.length] = x;
+                                }
+                            });
+                            return csub;
+                        }
+                    }
+                }
+                return null;
+            }
+        };
+    };
+
+    $.Autocompleter.Select = function (options, input, select, config) {
+        var CLASSES = {
+            ACTIVE: "ac_over"
+        };
+
+        var listItems,
+        active = -1,
+        data,
+        term = "",
+        needsInit = true,
+        element,
+        list;
+
+        // Create results
+        function init() {
+            if (!needsInit)
+                return;
+            element = $("<div/>")
+            .hide()
+            .addClass(options.resultsClass)
+            .css("position", "absolute")
+            .appendTo(document.body);
+
+            list = $("<ul/>").appendTo(element).mouseover( function(event) {
+                if(target(event).nodeName && target(event).nodeName.toUpperCase() == 'LI') {
+                    active = $("li", list).removeClass(CLASSES.ACTIVE).index(target(event));
+                    $(target(event)).addClass(CLASSES.ACTIVE);
+                }
+            }).click(function(event) {
+                $(target(event)).addClass(CLASSES.ACTIVE);
+                select();
+                // TODO provide option to avoid setting focus again after selection? useful for cleanup-on-focus
+                input.focus();
+                return false;
+            }).mousedown(function() {
+                config.mouseDownOnSelect = true;
+            }).mouseup(function() {
+                config.mouseDownOnSelect = false;
+            });
+
+            if( options.width > 0 )
+                element.css("width", options.width);
+
+            needsInit = false;
+        }
+
+        function target(event) {
+            var element = event.target;
+            while(element && element.tagName != "LI")
+                element = element.parentNode;
+            // more fun with IE, sometimes event.target is empty, just ignore it then
+            if(!element)
+                return [];
+            return element;
+        }
+
+        function moveSelect(step) {
+            listItems.slice(active, active + 1).removeClass(CLASSES.ACTIVE);
+            movePosition(step);
+            var activeItem = listItems.slice(active, active + 1).addClass(CLASSES.ACTIVE);
+            if(options.scroll) {
+                var offset = 0;
+                listItems.slice(0, active).each(function() {
+                    offset += this.offsetHeight;
+                });
+                if((offset + activeItem[0].offsetHeight - list.scrollTop()) > list[0].clientHeight) {
+                    list.scrollTop(offset + activeItem[0].offsetHeight - list.innerHeight());
+                } else if(offset < list.scrollTop()) {
+                    list.scrollTop(offset);
+                }
+            }
+        };
+
+        function movePosition(step) {
+            active += step;
+            if (active < 0) {
+                active = listItems.size() - 1;
+            } else if (active >= listItems.size()) {
+                active = 0;
+            }
+        }
+
+        function limitNumberOfItems(available) {
+            return options.max && options.max < available
+            ? options.max
+            : available;
+        }
+
+        function fillList() {
+            list.empty();
+            var max = limitNumberOfItems(data.length);
+            for (var i=0; i < max; i++) {
+                if (!data[i])
+                    continue;
+                var formatted = options.formatItem(data[i].data, i+1, max, data[i].value, term);
+                if ( formatted === false )
+                    continue;
+                var li = $("<li/>").html( options.highlight(formatted, term) ).addClass(i%2 == 0 ? "ac_even" : "ac_odd").appendTo(list)[0];
+                $.data(li, "ac_data", data[i]);
+            }
+            listItems = list.find("li");
+            if ( options.selectFirst ) {
+                listItems.slice(0, 1).addClass(CLASSES.ACTIVE);
+                active = 0;
+            }
+            // apply bgiframe if available
+            if ( $.fn.bgiframe )
+                list.bgiframe();
+        }
+
+        return {
+            display: function(d, q) {
+                init();
+                data = d;
+                term = q;
+                fillList();
+            },
+            next: function() {
+                moveSelect(1);
+            },
+            prev: function() {
+                moveSelect(-1);
+            },
+            pageUp: function() {
+                if (active != 0 && active - 8 < 0) {
+                    moveSelect( -active );
+                } else {
+                    moveSelect(-8);
+                }
+            },
+            pageDown: function() {
+                if (active != listItems.size() - 1 && active + 8 > listItems.size()) {
+                    moveSelect( listItems.size() - 1 - active );
+                } else {
+                    moveSelect(8);
+                }
+            },
+            hide: function() {
+                element && element.hide();
+                listItems && listItems.removeClass(CLASSES.ACTIVE);
+                active = -1;
+            },
+            visible : function() {
+                return element && element.is(":visible");
+            },
+            current: function() {
+                return this.visible() && (listItems.filter("." + CLASSES.ACTIVE)[0] || options.selectFirst && listItems[0]);
+            },
+            show: function() {
+                var offset = $(input).offset();
+                element.css({
+                    width: typeof options.width == "string" || options.width > 0 ? options.width : $(input).width(),
+                    top: offset.top + input.offsetHeight,
+                    left: offset.left
+                }).show();
+                if(options.scroll) {
+                    list.scrollTop(0);
+                    list.css({
+                        maxHeight: options.scrollHeight,
+                        overflow: 'auto'
+                    });
+
+                    if($.browser.msie /*&& typeof document.body.style.maxHeight === "undefined"*/) {
+                        var listHeight = 0;
+                        listItems.each(function() {
+                            listHeight += this.offsetHeight;
+                        });
+                        var scrollbarsVisible = listHeight > options.scrollHeight;
+                        list.css('height', scrollbarsVisible ? options.scrollHeight : listHeight );
+                        if (!scrollbarsVisible) {
+                            // IE doesn't recalculate width when scrollbar disappears
+                            listItems.width( list.width() - parseInt(listItems.css("padding-left")) - parseInt(listItems.css("padding-right")) );
+                        }
+                    }
+
+                }
+            },
+            selected: function() {
+                var selected = listItems && listItems.filter("." + CLASSES.ACTIVE).removeClass(CLASSES.ACTIVE);
+                return selected && selected.length && $.data(selected[0], "ac_data");
+            },
+            emptyList: function (){
+                list && list.empty();
+            },
+            unbind: function() {
+                element && element.remove();
+            }
+        };
+    };
+
+    $.fn.selection = function(start, end) {
+        if (start !== undefined) {
+            return this.each(function() {
+                if( this.createTextRange ){
+                    var selRange = this.createTextRange();
+                    if (end === undefined || start == end) {
+                        selRange.move("character", start);
+                        selRange.select();
+                    } else {
+                        selRange.collapse(true);
+                        selRange.moveStart("character", start);
+                        selRange.moveEnd("character", end);
+                        selRange.select();
+                    }
+                } else if( this.setSelectionRange ){
+                    this.setSelectionRange(start, end);
+                } else if( this.selectionStart ){
+                    this.selectionStart = start;
+                    this.selectionEnd = end;
+                }
+            });
+        }
+        var field = this[0];
+        if ( field.createTextRange ) {
+            var range = document.selection.createRange(),
+            orig = field.value,
+            teststring = "<->",
+            textLength = range.text.length;
+            range.text = teststring;
+            var caretAt = field.value.indexOf(teststring);
+            field.value = orig;
+            this.selection(caretAt, caretAt + textLength);
+            return {
+                start: caretAt,
+                end: caretAt + textLength
+            }
+        } else if( field.selectionStart !== undefined ){
+            return {
+                start: field.selectionStart,
+                end: field.selectionEnd
+            }
+        }
+    };
+
+})(jQuery);
+
+/*
+(c) Copyrights 2007 - 2008
+
+Original idea by by Binny V A, http://www.openjs.com/scripts/events/keyboard_shortcuts/
+
+jQuery Plugin by Tzury Bar Yochay
+tzury.by@gmail.com
+http://evalinux.wordpress.com
+http://facebook.com/profile.php?id=513676303
+
+Project's sites:
+http://code.google.com/p/js-hotkeys/
+http://github.com/tzuryby/hotkeys/tree/master
+
+License: same as jQuery license.
+
+USAGE:
+    // simple usage
+    $(document).bind('keydown', 'Ctrl+c', function(){ alert('copy anyone?');});
+
+    // special options such as disableInIput
+    $(document).bind('keydown', {combi:'Ctrl+x', disableInInput: true} , function() {});
+
+Note:
+    This plugin wraps the following jQuery methods: $.fn.find, $.fn.bind and $.fn.unbind
+
+*/
+
+
+(function (jQuery){
+    // keep reference to the original $.fn.bind and $.fn.unbind
+    jQuery.fn.__bind__ = jQuery.fn.bind;
+    jQuery.fn.__unbind__ = jQuery.fn.unbind;
+    jQuery.fn.__find__ = jQuery.fn.find;
+
+    var hotkeys = {
+        version: '0.7.8',
+        override: /keydown|keypress|keyup/g,
+        triggersMap: {},
+
+        specialKeys: { 
+            27: 'esc',
+            9: 'tab',
+            32:'space',
+            13: 'return',
+            8:'backspace',
+            145: 'scroll',
+            20: 'capslock',
+            144: 'numlock',
+            19:'pause',
+            45:'insert',
+            36:'home',
+            46:'del',
+            35:'end', 
+            33: 'pageup',
+            34:'pagedown',
+            37:'left',
+            38:'up',
+            39:'right',
+            40:'down',
+            112:'f1',
+            113:'f2',
+            114:'f3',
+            115:'f4',
+            116:'f5',
+            117:'f6',
+            118:'f7',
+            119:'f8',
+            120:'f9', 
+            121:'f10',
+            122:'f11',
+            123:'f12'
+        },
+
+        shiftNums: { 
+            "`":"~",
+            "1":"!",
+            "2":"@",
+            "3":"#",
+            "4":"$",
+            "5":"%",
+            "6":"^",
+            "7":"&",
+            "8":"*",
+            "9":"(",
+            "0":")",
+            "-":"_",
+            "=":"+",
+            ";":":",
+            "'":"\"",
+            ",":"<",
+            ".":">",
+            "/":"?",
+            "\\":"|"
+        },
+
+        newTrigger: function (type, combi, callback) {
+            // i.e. {'keyup': {'ctrl': {cb: callback, disableInInput: false}}}
+            var result = {};
+            result[type] = {};
+            result[type][combi] = {
+                cb: callback,
+                disableInInput: false
+            };
+            return result;
+        }
+    };
+    // add firefox num pad char codes
+    if (jQuery.browser.mozilla){
+        hotkeys.specialKeys = jQuery.extend(hotkeys.specialKeys, { 
+            96: '0',
+            97:'1',
+            98: '2',
+            99:
+            '3',
+            100: '4',
+            101: '5',
+            102: '6',
+            103: '7',
+            104: '8',
+            105: '9'
+        });
+    }
+
+    // a wrapper around of $.fn.find
+    // see more at: http://groups.google.com/group/jquery-en/browse_thread/thread/18f9825e8d22f18d
+    jQuery.fn.find = function( selector ) {
+        this.query=selector;
+        return jQuery.fn.__find__.apply(this, arguments);
+    };
+
+    jQuery.fn.unbind = function (type, combi, fn){
+        if (jQuery.isFunction(combi)){
+            fn = combi;
+            combi = null;
+        }
+        if (combi && typeof combi === 'string'){
+            var selectorId = ((this.prevObject && this.prevObject.query) || (this[0].id && this[0].id) || this[0]).toString();
+            var hkTypes = type.split(' ');
+            for (var x=0; x<hkTypes.length; x++){
+                delete hotkeys.triggersMap[selectorId][hkTypes[x]][combi];
+            }
+        }
+        // call jQuery original unbind
+        return  this.__unbind__(type, fn);
+    };
+
+    jQuery.fn.bind = function(type, data, fn){
+        // grab keyup,keydown,keypress
+        var handle = type.match(hotkeys.override);
+
+        if (jQuery.isFunction(data) || !handle){
+            // call jQuery.bind only
+            return this.__bind__(type, data, fn);
+        }
+        else{
+            // split the job
+            var result = null,
+            // pass the rest to the original $.fn.bind
+            pass2jq = jQuery.trim(type.replace(hotkeys.override, ''));
+
+            // see if there are other types, pass them to the original $.fn.bind
+            if (pass2jq){
+                // call original jQuery.bind()
+                result = this.__bind__(pass2jq, data, fn);
+            }
+
+            if (typeof data === "string"){
+                data = {
+                    'combi': data
+                };
+            }
+            if(data.combi){
+                for (var x=0; x < handle.length; x++){
+                    var eventType = handle[x];
+                    var combi = data.combi.toLowerCase(),
+                    trigger = hotkeys.newTrigger(eventType, combi, fn),
+                    selectorId = ((this.prevObject && this.prevObject.query) || (this[0].id && this[0].id) || this[0]).toString();
+
+                    //trigger[eventType][combi].propagate = data.propagate;
+                    trigger[eventType][combi].disableInInput = data.disableInInput;
+
+                    // first time selector is bounded
+                    if (!hotkeys.triggersMap[selectorId]) {
+                        hotkeys.triggersMap[selectorId] = trigger;
+                    }
+                    // first time selector is bounded with this type
+                    else if (!hotkeys.triggersMap[selectorId][eventType]) {
+                        hotkeys.triggersMap[selectorId][eventType] = trigger[eventType];
+                    }
+                    // make trigger point as array so more than one handler can be bound
+                    var mapPoint = hotkeys.triggersMap[selectorId][eventType][combi];
+                    if (!mapPoint){
+                        hotkeys.triggersMap[selectorId][eventType][combi] = [trigger[eventType][combi]];
+                    }
+                    else if (mapPoint.constructor !== Array){
+                        hotkeys.triggersMap[selectorId][eventType][combi] = [mapPoint];
+                    }
+                    else {
+                        hotkeys.triggersMap[selectorId][eventType][combi][mapPoint.length] = trigger[eventType][combi];
+                    }
+
+                    // add attribute and call $.event.add per matched element
+                    this.each(function(){
+                        // jQuery wrapper for the current element
+                        var jqElem = jQuery(this);
+
+                        // element already associated with another collection
+                        if (jqElem.attr('hkId') && jqElem.attr('hkId') !== selectorId){
+                            selectorId = jqElem.attr('hkId') + ";" + selectorId;
+                        }
+                        jqElem.attr('hkId', selectorId);
+                    });
+                    result = this.__bind__(handle.join(' '), data, hotkeys.handler)
+                }
+            }
+            return result;
+        }
+    };
+    // work-around for opera and safari where (sometimes) the target is the element which was last
+    // clicked with the mouse and not the document event it would make sense to get the document
+    hotkeys.findElement = function (elem){
+        if (!jQuery(elem).attr('hkId')){
+            if (jQuery.browser.opera || jQuery.browser.safari){
+                while (!jQuery(elem).attr('hkId') && elem.parentNode){
+                    elem = elem.parentNode;
+                }
+            }
+        }
+        return elem;
+    };
+    // the event handler
+    hotkeys.handler = function(event) {
+        var target = hotkeys.findElement(event.currentTarget),
+        jTarget = jQuery(target),
+        ids = jTarget.attr('hkId');
+
+        if(ids){
+            ids = ids.split(';');
+            var code = event.which,
+            type = event.type,
+            special = hotkeys.specialKeys[code],
+            // prevent f5 overlapping with 't' (or f4 with 's', etc.)
+            character = !special && String.fromCharCode(code).toLowerCase(),
+            shift = event.shiftKey,
+            ctrl = event.ctrlKey,
+            // patch for jquery 1.2.5 && 1.2.6 see more at:
+            // http://groups.google.com/group/jquery-en/browse_thread/thread/83e10b3bb1f1c32b
+            alt = event.altKey || event.originalEvent.altKey,
+            mapPoint = null;
+
+            for (var x=0; x < ids.length; x++){
+                if (hotkeys.triggersMap[ids[x]][type]){
+                    mapPoint = hotkeys.triggersMap[ids[x]][type];
+                    break;
+                }
+            }
+
+            //find by: id.type.combi.options
+            if (mapPoint){
+                var trigger;
+                // event type is associated with the hkId
+                if(!shift && !ctrl && !alt) { // No Modifiers
+                    trigger = mapPoint[special] ||  (character && mapPoint[character]);
+                }
+                else{
+                    // check combinations (alt|ctrl|shift+anything)
+                    var modif = '';
+                    if(alt) modif +='alt+';
+                    if(ctrl) modif+= 'ctrl+';
+                    if(shift) modif += 'shift+';
+
+                    // modifiers + special keys or modifiers + character or modifiers + shift character or just shift character
+                    trigger = mapPoint[modif+special];
+                    if (!trigger){
+                        if (character){
+                            trigger = mapPoint[modif+character]
+                            || mapPoint[modif+hotkeys.shiftNums[character]]
+                            // '$' can be triggered as 'Shift+4' or 'Shift+$' or just '$'
+                            || (modif === 'shift+' && mapPoint[hotkeys.shiftNums[character]]);
+                        }
+                    }
+                }
+                if (trigger){
+                    var result = false;
+                    for (var x=0; x < trigger.length; x++){
+                        if(trigger[x].disableInInput){
+                            // double check event.currentTarget and event.target
+                            var elem = jQuery(event.target);
+                            if (jTarget.is("input") || jTarget.is("textarea")
+                                || elem.is("input") || elem.is("textarea")) {
+                                return true;
+                            }
+                        }
+                        // call the registered callback function
+                        result = result || trigger[x].cb.apply(this, [event]);
+                    }
+                    return result;
+                }
+            }
+        }
+    };
+    // place it under window so it can be extended and overridden by others
+    window.hotkeys = hotkeys;
+    return jQuery;
+})(jQuery);
+
+/**
+ * jQuery.ScrollTo
+ * Copyright (c) 2007-2009 Ariel Flesler - aflesler(at)gmail(dot)com | http://flesler.blogspot.com
+ * Dual licensed under MIT and GPL.
+ * Date: 3/9/2009
+ *
+ * @projectDescription Easy element scrolling using jQuery.
+ * http://flesler.blogspot.com/2007/10/jqueryscrollto.html
+ * Works with jQuery +1.2.6. Tested on FF 2/3, IE 6/7, Opera 9.5/6, Safari 3, Chrome 1 on WinXP.
+ *
+ * @author Ariel Flesler
+ * @version 1.4.1
+ *
+ * @id jQuery.scrollTo
+ * @id jQuery.fn.scrollTo
+ * @param {String, Number, DOMElement, jQuery, Object} target Where to scroll the matched elements.
+ *	  The different options for target are:
+ *		- A number position (will be applied to all axes).
+ *		- A string position ('44', '100px', '+=90', etc ) will be applied to all axes
+ *		- A jQuery/DOM element ( logically, child of the element to scroll )
+ *		- A string selector, that will be relative to the element to scroll ( 'li:eq(2)', etc )
+ *		- A hash { top:x, left:y }, x and y can be any kind of number/string like above.
+ * @param {Number} duration The OVERALL length of the animation, this argument can be the settings object instead.
+ * @param {Object,Function} settings Optional set of settings or the onAfter callback.
+ *	 @option {String} axis Which axis must be scrolled, use 'x', 'y', 'xy' or 'yx'.
+ *	 @option {Number} duration The OVERALL length of the animation.
+ *	 @option {String} easing The easing method for the animation.
+ *	 @option {Boolean} margin If true, the margin of the target element will be deducted from the final position.
+ *	 @option {Object, Number} offset Add/deduct from the end position. One number for both axes or { top:x, left:y }.
+ *	 @option {Object, Number} over Add/deduct the height/width multiplied by 'over', can be { top:x, left:y } when using both axes.
+ *	 @option {Boolean} queue If true, and both axis are given, the 2nd axis will only be animated after the first one ends.
+ *	 @option {Function} onAfter Function to be called after the scrolling ends.
+ *	 @option {Function} onAfterFirst If queuing is activated, this function will be called after the first scrolling ends.
+ * @return {jQuery} Returns the same jQuery object, for chaining.
+ *
+ * @desc Scroll to a fixed position
+ * @example $('div').scrollTo( 340 );
+ *
+ * @desc Scroll relatively to the actual position
+ * @example $('div').scrollTo( '+=340px', { axis:'y' } );
+ *
+ * @dec Scroll using a selector (relative to the scrolled element)
+ * @example $('div').scrollTo( 'p.paragraph:eq(2)', 500, { easing:'swing', queue:true, axis:'xy' } );
+ *
+ * @ Scroll to a DOM element (same for jQuery object)
+ * @example var second_child = document.getElementById('container').firstChild.nextSibling;
+ *			$('#container').scrollTo( second_child, { duration:500, axis:'x', onAfter:function(){
+ *				alert('scrolled!!');
+ *			}});
+ *
+ * @desc Scroll on both axes, to different values
+ * @example $('div').scrollTo( { top: 300, left:'+=200' }, { axis:'xy', offset:-20 } );
+ */
+;(function( $ ){
+
+    var $scrollTo = $.scrollTo = function( target, duration, settings ){
+        $(window).scrollTo( target, duration, settings );
+    };
+
+    $scrollTo.defaults = {
+        axis:'xy',
+        duration: parseFloat($.fn.jquery) >= 1.3 ? 0 : 1
+    };
+
+    // Returns the element that needs to be animated to scroll the window.
+    // Kept for backwards compatibility (specially for localScroll & serialScroll)
+    $scrollTo.window = function( scope ){
+        return $(window).scrollable();
+    };
+
+    // Hack, hack, hack... stay away!
+    // Returns the real elements to scroll (supports window/iframes, documents and regular nodes)
+    $.fn.scrollable = function(){
+        return this.map(function(){
+            var elem = this,
+            isWin = !elem.nodeName || $.inArray( elem.nodeName.toLowerCase(), ['iframe','#document','html','body'] ) != -1;
+
+            if( !isWin )
+                return elem;
+
+            var doc = (elem.contentWindow || elem).document || elem.ownerDocument || elem;
+
+            return $.browser.safari || doc.compatMode == 'BackCompat' ?
+            doc.body :
+            doc.documentElement;
+        });
+    };
+
+    $.fn.scrollTo = function( target, duration, settings ){
+        if( typeof duration == 'object' ){
+            settings = duration;
+            duration = 0;
+        }
+        if( typeof settings == 'function' )
+            settings = {
+                onAfter:settings
+            };
+
+        if( target == 'max' )
+            target = 9e9;
+
+        settings = $.extend( {}, $scrollTo.defaults, settings );
+        // Speed is still recognized for backwards compatibility
+        duration = duration || settings.speed || settings.duration;
+        // Make sure the settings are given right
+        settings.queue = settings.queue && settings.axis.length > 1;
+
+        if( settings.queue )
+            // Let's keep the overall duration
+            duration /= 2;
+        settings.offset = both( settings.offset );
+        settings.over = both( settings.over );
+
+        return this.scrollable().each(function(){
+            var elem = this,
+            $elem = $(elem),
+            targ = target, toff, attr = {},
+            win = $elem.is('html,body');
+
+            switch( typeof targ ){
+                // A number will pass the regex
+                case 'number':
+                case 'string':
+                    if( /^([+-]=)?\d+(\.\d+)?(px)?$/.test(targ) ){
+                        targ = both( targ );
+                        // We are done
+                        break;
+                    }
+                    // Relative selector, no break!
+                    targ = $(targ,this);
+                case 'object':
+                    // DOMElement / jQuery
+                    if( targ.is || targ.style )
+                        // Get the real position of the target
+                        toff = (targ = $(targ)).offset();
+            }
+            $.each( settings.axis.split(''), function( i, axis ){
+                var Pos	= axis == 'x' ? 'Left' : 'Top',
+                pos = Pos.toLowerCase(),
+                key = 'scroll' + Pos,
+                old = elem[key],
+                Dim = axis == 'x' ? 'Width' : 'Height';
+
+                if( toff ){// jQuery / DOMElement
+                    attr[key] = toff[pos] + ( win ? 0 : old - $elem.offset()[pos] );
+
+                    // If it's a dom element, reduce the margin
+                    if( settings.margin ){
+                        attr[key] -= parseInt(targ.css('margin'+Pos)) || 0;
+                        attr[key] -= parseInt(targ.css('border'+Pos+'Width')) || 0;
+                    }
+
+                    attr[key] += settings.offset[pos] || 0;
+
+                    if( settings.over[pos] )
+                        // Scroll to a fraction of its width/height
+                        attr[key] += targ[Dim.toLowerCase()]() * settings.over[pos];
+                }else
+                    attr[key] = targ[pos];
+
+                // Number or 'number'
+                if( /^\d+$/.test(attr[key]) )
+                    // Check the limits
+                    attr[key] = attr[key] <= 0 ? 0 : Math.min( attr[key], max(Dim) );
+
+                // Queueing axes
+                if( !i && settings.queue ){
+                    // Don't waste time animating, if there's no need.
+                    if( old != attr[key] )
+                        // Intermediate animation
+                        animate( settings.onAfterFirst );
+                    // Don't animate this axis again in the next iteration.
+                    delete attr[key];
+                }
+            });
+
+            animate( settings.onAfter );
+
+            function animate( callback ){
+                $elem.animate( attr, duration, settings.easing, callback && function(){
+                    callback.call(this, target, settings);
+                });
+            };
+
+            // Max scrolling position, works on quirks mode
+            // It only fails (not too badly) on IE, quirks mode.
+            function max( Dim ){
+                var scroll = 'scroll'+Dim;
+
+                if( !win )
+                    return elem[scroll];
+
+                var size = 'client' + Dim,
+                html = elem.ownerDocument.documentElement,
+                body = elem.ownerDocument.body;
+
+                return Math.max( html[scroll], body[scroll] )
+                - Math.min( html[size]  , body[size]   );
+
+            };
+
+        }).end();
+    };
+
+    function both( val ){
+        return typeof val == 'object' ? val : {
+            top:val,
+            left:val
+        };
+    };
+
+})( jQuery );
+
+jQuery.fn.extend({
+    everyTime: function(interval, label, fn, times, belay) {
+        return this.each(function() {
+            jQuery.timer.add(this, interval, label, fn, times, belay);
+        });
+    },
+    oneTime: function(interval, label, fn) {
+        return this.each(function() {
+            jQuery.timer.add(this, interval, label, fn, 1);
+        });
+    },
+    stopTime: function(label, fn) {
+        return this.each(function() {
+            jQuery.timer.remove(this, label, fn);
+        });
+    }
+});
+
+jQuery.extend({
+    timer: {
+        guid: 1,
+        global: {},
+        regex: /^([0-9]+)\s*(.*s)?$/,
+        powers: {
+            // Yeah this is major overkill...
+            'ms': 1,
+            'cs': 10,
+            'ds': 100,
+            's': 1000,
+            'das': 10000,
+            'hs': 100000,
+            'ks': 1000000
+        },
+        timeParse: function(value) {
+            if (value == undefined || value == null)
+                return null;
+            var result = this.regex.exec(jQuery.trim(value.toString()));
+            if (result[2]) {
+                var num = parseInt(result[1], 10);
+                var mult = this.powers[result[2]] || 1;
+                return num * mult;
+            } else {
+                return value;
+            }
+        },
+        add: function(element, interval, label, fn, times, belay) {
+            var counter = 0;
+
+            if (jQuery.isFunction(label)) {
+                if (!times)
+                    times = fn;
+                fn = label;
+                label = interval;
+            }
+
+            interval = jQuery.timer.timeParse(interval);
+
+            if (typeof interval != 'number' || isNaN(interval) || interval <= 0)
+                return;
+
+            if (times && times.constructor != Number) {
+                belay = !!times;
+                times = 0;
+            }
+
+            times = times || 0;
+            belay = belay || false;
+
+            if (!element.$timers)
+                element.$timers = {};
+
+            if (!element.$timers[label])
+                element.$timers[label] = {};
+
+            fn.$timerID = fn.$timerID || this.guid++;
+
+            var handler = function() {
+                if (belay && this.inProgress)
+                    return;
+                this.inProgress = true;
+                if ((++counter > times && times !== 0) || fn.call(element, counter) === false)
+                    jQuery.timer.remove(element, label, fn);
+                this.inProgress = false;
+            };
+
+            handler.$timerID = fn.$timerID;
+
+            if (!element.$timers[label][fn.$timerID])
+                element.$timers[label][fn.$timerID] = window.setInterval(handler,interval);
+
+            if ( !this.global[label] )
+                this.global[label] = [];
+            this.global[label].push( element );
+
+        },
+        remove: function(element, label, fn) {
+            var timers = element.$timers, ret;
+
+            if ( timers ) {
+
+                if (!label) {
+                    for ( label in timers )
+                        this.remove(element, label, fn);
+                } else if ( timers[label] ) {
+                    if ( fn ) {
+                        if ( fn.$timerID ) {
+                            window.clearInterval(timers[label][fn.$timerID]);
+                            delete timers[label][fn.$timerID];
+                        }
+                    } else {
+                        for ( var fn in timers[label] ) {
+                            window.clearInterval(timers[label][fn]);
+                            delete timers[label][fn];
+                        }
+                    }
+
+                    for ( ret in timers[label] ) break;
+                    if ( !ret ) {
+                        ret = null;
+                        delete timers[label];
+                    }
+                }
+
+                for ( ret in timers ) break;
+                if ( !ret )
+                    element.$timers = null;
+            }
+        }
+    }
+});
+
+if (jQuery.browser.msie)
+    jQuery(window).one("unload", function() {
+        var global = jQuery.timer.global;
+        for ( var label in global ) {
+            var els = global[label], i = els.length;
+            while ( --i )
+                jQuery.timer.remove(els[i], label);
+        }
+    });
+
+/*!
+ * jQuery blockUI plugin
+ * Version 2.28 (02-DEC-2009)
+ * @requires jQuery v1.2.3 or later
+ *
+ * Examples at: http://malsup.com/jquery/block/
+ * Copyright (c) 2007-2008 M. Alsup
+ * Dual licensed under the MIT and GPL licenses:
+ * http://www.opensource.org/licenses/mit-license.php
+ * http://www.gnu.org/licenses/gpl.html
+ *
+ * Thanks to Amir-Hossein Sobhi for some excellent contributions!
+ */
+
+;(function($) {
+
+    if (/1\.(0|1|2)\.(0|1|2)/.test($.fn.jquery) || /^1.1/.test($.fn.jquery)) {
+        alert('blockUI requires jQuery v1.2.3 or later!  You are using v' + $.fn.jquery);
+        return;
+    }
+
+    $.fn._fadeIn = $.fn.fadeIn;
+
+    // this bit is to ensure we don't call setExpression when we shouldn't (with extra muscle to handle
+    // retarded userAgent strings on Vista)
+    var mode = document.documentMode || 0;
+    var setExpr = $.browser.msie && (($.browser.version < 8 && !mode) || mode < 8);
+    var ie6 = $.browser.msie && /MSIE 6.0/.test(navigator.userAgent) && !mode;
+
+    // global $ methods for blocking/unblocking the entire page
+    $.blockUI   = function(opts) {
+        install(window, opts);
+    };
+    $.unblockUI = function(opts) {
+        remove(window, opts);
+    };
+
+    // convenience method for quick growl-like notifications  (http://www.google.com/search?q=growl)
+    $.growlUI = function(title, message, timeout, onClose) {
+        var $m = $('<div class="growlUI"></div>');
+        if (title) $m.append('<h1>'+title+'</h1>');
+        if (message) $m.append('<h2>'+message+'</h2>');
+        if (timeout == undefined) timeout = 3000;
+        $.blockUI({
+            message: $m,
+            fadeIn: 700,
+            fadeOut: 1000,
+            centerY: false,
+            timeout: timeout,
+            showOverlay: false,
+            onUnblock: onClose,
+            css: $.blockUI.defaults.growlCSS
+        });
+    };
+
+    // plugin method for blocking element content
+    $.fn.block = function(opts) {
+        return this.unblock({
+            fadeOut: 0
+        }).each(function() {
+            if ($.css(this,'position') == 'static')
+                this.style.position = 'relative';
+            if ($.browser.msie)
+                this.style.zoom = 1; // force 'hasLayout'
+            install(this, opts);
+        });
+    };
+
+    // plugin method for unblocking element content
+    $.fn.unblock = function(opts) {
+        return this.each(function() {
+            remove(this, opts);
+        });
+    };
+
+    $.blockUI.version = 2.28; // 2nd generation blocking at no extra cost!
+
+    // override these in your code to change the default behavior and style
+    $.blockUI.defaults = {
+        // message displayed when blocking (use null for no message)
+        message:  '<img src="Common/loader.gif" />',
+
+        title: 'Your request is beeing processed',	  // title string; only used when theme == true
+        draggable: true,  // only used when theme == true (requires jquery-ui.js to be loaded)
+
+        theme: false, // set to true to use with jQuery UI themes
+
+        // styles for the message when blocking; if you wish to disable
+        // these and use an external stylesheet then do this in your code:
+        // $.blockUI.defaults.css = {};
+        css: {
+            padding:	0,
+            margin:		0,
+            width:		'35',
+            top:		'47%',
+            left:		'47%',
+            textAlign:	'center',
+            border:		'',
+            cursor:		'wait'
+        },
+
+        // minimal style set used when themes are used
+        themedCSS: {
+            width:	'80%',
+            top:	'40%',
+            left:	'35%'
+        },
+
+        // styles for the overlay
+        overlayCSS:  {
+            cursor:		  	 'wait'
+        },
+
+        // styles applied when using $.growlUI
+        growlCSS: {
+            width:  	'350px',
+            top:		'10px',
+            left:   	'',
+            right:  	'10px',
+            border: 	'none',
+            padding:	'5px',
+            opacity:	0.6,
+            cursor: 	'default',
+            color:		'#fff',
+            backgroundColor: '#000',
+            '-webkit-border-radius': '10px',
+            '-moz-border-radius':	 '10px'
+        },
+
+        // IE issues: 'about:blank' fails on HTTPS and javascript:false is s-l-o-w
+        // (hat tip to Jorge H. N. de Vasconcelos)
+        iframeSrc: /^https/i.test(window.location.href || '') ? 'javascript:false' : 'about:blank',
+
+        // force usage of iframe in non-IE browsers (handy for blocking applets)
+        forceIframe: false,
+
+        // z-index for the blocking overlay
+        baseZ: 1000,
+
+        // set these to true to have the message automatically centered
+        centerX: true, // <-- only effects element blocking (page block controlled via css above)
+        centerY: true,
+
+        // allow body element to be stetched in ie6; this makes blocking look better
+        // on "short" pages.  disable if you wish to prevent changes to the body height
+        allowBodyStretch: true,
+
+        // enable if you want key and mouse events to be disabled for content that is blocked
+        bindEvents: true,
+
+        // be default blockUI will supress tab navigation from leaving blocking content
+        // (if bindEvents is true)
+        constrainTabKey: true,
+
+        // fadeIn time in millis; set to 0 to disable fadeIn on block
+        fadeIn:  200,
+
+        // fadeOut time in millis; set to 0 to disable fadeOut on unblock
+        fadeOut:  400,
+
+        // time in millis to wait before auto-unblocking; set to 0 to disable auto-unblock
+        timeout: 0,
+
+        // disable if you don't want to show the overlay
+        showOverlay: true,
+
+        // if true, focus will be placed in the first available input field when
+        // page blocking
+        focusInput: true,
+
+        // suppresses the use of overlay styles on FF/Linux (due to performance issues with opacity)
+        applyPlatformOpacityRules: true,
+
+        // callback method invoked when unblocking has completed; the callback is
+        // passed the element that has been unblocked (which is the window object for page
+        // blocks) and the options that were passed to the unblock call:
+        //	 onUnblock(element, options)
+        onUnblock: null,
+
+        // don't ask; if you really must know: http://groups.google.com/group/jquery-en/browse_thread/thread/36640a8730503595/2f6a79a77a78e493#2f6a79a77a78e493
+        quirksmodeOffsetHack: 4
+    };
+
+    // private data and functions follow...
+
+    var pageBlock = null;
+    var pageBlockEls = [];
+
+    function install(el, opts) {
+        var full = (el == window);
+        var msg = opts && opts.message !== undefined ? opts.message : undefined;
+        opts = $.extend({}, $.blockUI.defaults, opts || {});
+        opts.overlayCSS = $.extend({}, $.blockUI.defaults.overlayCSS, opts.overlayCSS || {});
+        var css = $.extend({}, $.blockUI.defaults.css, opts.css || {});
+        var themedCSS = $.extend({}, $.blockUI.defaults.themedCSS, opts.themedCSS || {});
+        msg = msg === undefined ? opts.message : msg;
+
+        // remove the current block (if there is one)
+        if (full && pageBlock)
+            remove(window, {
+                fadeOut:0
+            });
+
+        // if an existing element is being used as the blocking content then we capture
+        // its current place in the DOM (and current display style) so we can restore
+        // it when we unblock
+        if (msg && typeof msg != 'string' && (msg.parentNode || msg.jquery)) {
+            var node = msg.jquery ? msg[0] : msg;
+            var data = {};
+            $(el).data('blockUI.history', data);
+            data.el = node;
+            data.parent = node.parentNode;
+            data.display = node.style.display;
+            data.position = node.style.position;
+            if (data.parent)
+                data.parent.removeChild(node);
+        }
+
+        var z = opts.baseZ;
+
+        // blockUI uses 3 layers for blocking, for simplicity they are all used on every platform;
+        // layer1 is the iframe layer which is used to supress bleed through of underlying content
+        // layer2 is the overlay layer which has opacity and a wait cursor (by default)
+        // layer3 is the message content that is displayed while blocking
+
+        var lyr1 = ($.browser.msie || opts.forceIframe)
+        ? $('<iframe class="blockUI" style="z-index:'+ (z++) +';display:none;border:none;margin:0;padding:0;position:absolute;width:100%;height:100%;top:0;left:0" src="'+opts.iframeSrc+'"></iframe>')
+        : $('<div class="blockUI" style="display:none"></div>');
+        var lyr2 = $('<div class="blockUI blockOverlay" style="z-index:'+ (z++) +';display:none;border:none;margin:0;padding:0;width:100%;height:100%;top:0;left:0"></div>');
+
+        var lyr3;
+        if (opts.theme && full) {
+            var s = '<div class="blockUI blockMsg blockPage ui-dialog ui-widget ui-corner-all" style="z-index:'+z+';display:none;position:fixed">' +
+            '<div class="ui-widget-header ui-dialog-titlebar blockTitle">'+(opts.title || '&nbsp;')+'</div>' +
+            '<div class="ui-widget-content ui-dialog-content"></div>' +
+            '</div>';
+            lyr3 = $(s);
+        }
+        else {
+            lyr3 = full ? $('<div class="blockUI blockMsg blockPage" style="z-index:'+z+';display:none;position:fixed"></div>')
+            : $('<div class="blockUI blockMsg blockElement" style="z-index:'+z+';display:none;position:absolute"></div>');
+        }
+
+        // if we have a message, style it
+        if (msg) {
+            if (opts.theme) {
+                lyr3.css(themedCSS);
+                lyr3.addClass('ui-widget-content');
+            }
+            else
+                lyr3.css(css);
+        }
+
+        // style the overlay
+        if (!opts.applyPlatformOpacityRules || !($.browser.mozilla && /Linux/.test(navigator.platform)))
+            lyr2.css(opts.overlayCSS);
+        lyr2.css('position', full ? 'fixed' : 'absolute');
+
+        // make iframe layer transparent in IE
+        if ($.browser.msie || opts.forceIframe)
+            lyr1.css('opacity',0.0);
+
+        $([lyr1[0],lyr2[0],lyr3[0]]).appendTo(full ? 'body' : el);
+
+        if (opts.theme && opts.draggable && $.fn.draggable) {
+            lyr3.draggable({
+                handle: '.ui-dialog-titlebar',
+                cancel: 'li'
+            });
+        }
+
+        // ie7 must use absolute positioning in quirks mode and to account for activex issues (when scrolling)
+        var expr = setExpr && (!$.boxModel || $('object,embed', full ? null : el).length > 0);
+        if (ie6 || expr) {
+            // give body 100% height
+            if (full && opts.allowBodyStretch && $.boxModel)
+                $('html,body').css('height','100%');
+
+            // fix ie6 issue when blocked element has a border width
+            if ((ie6 || !$.boxModel) && !full) {
+                var t = sz(el,'borderTopWidth'), l = sz(el,'borderLeftWidth');
+                var fixT = t ? '(0 - '+t+')' : 0;
+                var fixL = l ? '(0 - '+l+')' : 0;
+            }
+
+            // simulate fixed position
+            $.each([lyr1,lyr2,lyr3], function(i,o) {
+                var s = o[0].style;
+                s.position = 'absolute';
+                if (i < 2) {
+                    full ? s.setExpression('height','Math.max(document.body.scrollHeight, document.body.offsetHeight) - (jQuery.boxModel?0:'+opts.quirksmodeOffsetHack+') + "px"')
+                    : s.setExpression('height','this.parentNode.offsetHeight + "px"');
+                    full ? s.setExpression('width','jQuery.boxModel && document.documentElement.clientWidth || document.body.clientWidth + "px"')
+                    : s.setExpression('width','this.parentNode.offsetWidth + "px"');
+                    if (fixL) s.setExpression('left', fixL);
+                    if (fixT) s.setExpression('top', fixT);
+                }
+                else if (opts.centerY) {
+                    if (full) s.setExpression('top','(document.documentElement.clientHeight || document.body.clientHeight) / 2 - (this.offsetHeight / 2) + (blah = document.documentElement.scrollTop ? document.documentElement.scrollTop : document.body.scrollTop) + "px"');
+                    s.marginTop = 0;
+                }
+                else if (!opts.centerY && full) {
+                    var top = (opts.css && opts.css.top) ? parseInt(opts.css.top) : 0;
+                    var expression = '((document.documentElement.scrollTop ? document.documentElement.scrollTop : document.body.scrollTop) + '+top+') + "px"';
+                    s.setExpression('top',expression);
+                }
+            });
+        }
+
+        // show the message
+        if (msg) {
+            if (opts.theme)
+                lyr3.find('.ui-widget-content').append(msg);
+            else
+                lyr3.append(msg);
+            if (msg.jquery || msg.nodeType)
+                $(msg).show();
+        }
+
+        if (($.browser.msie || opts.forceIframe) && opts.showOverlay)
+            lyr1.show(); // opacity is zero
+        if (opts.fadeIn) {
+            if (opts.showOverlay)
+                lyr2._fadeIn(opts.fadeIn);
+            if (msg)
+                lyr3.fadeIn(opts.fadeIn);
+        }
+        else {
+            if (opts.showOverlay)
+                lyr2.show();
+            if (msg)
+                lyr3.show();
+        }
+
+        // bind key and mouse events
+        bind(1, el, opts);
+
+        if (full) {
+            pageBlock = lyr3[0];
+            pageBlockEls = $(':input:enabled:visible',pageBlock);
+            if (opts.focusInput)
+                setTimeout(focus, 20);
+        }
+        else
+            center(lyr3[0], opts.centerX, opts.centerY);
+
+        if (opts.timeout) {
+            // auto-unblock
+            var to = setTimeout(function() {
+                full ? $.unblockUI(opts) : $(el).unblock(opts);
+            }, opts.timeout);
+            $(el).data('blockUI.timeout', to);
+        }
+    };
+
+    // remove the block
+    function remove(el, opts) {
+        var full = (el == window);
+        var $el = $(el);
+        var data = $el.data('blockUI.history');
+        var to = $el.data('blockUI.timeout');
+        if (to) {
+            clearTimeout(to);
+            $el.removeData('blockUI.timeout');
+        }
+        opts = $.extend({}, $.blockUI.defaults, opts || {});
+        bind(0, el, opts); // unbind events
+
+        var els;
+        if (full) // crazy selector to handle odd field errors in ie6/7
+            els = $('body').children().filter('.blockUI').add('body > .blockUI');
+        else
+            els = $('.blockUI', el);
+
+        if (full)
+            pageBlock = pageBlockEls = null;
+
+        if (opts.fadeOut) {
+            els.fadeOut(opts.fadeOut);
+            setTimeout(function() {
+                reset(els,data,opts,el);
+            }, opts.fadeOut);
+        }
+        else
+            reset(els, data, opts, el);
+    };
+
+    // move blocking element back into the DOM where it started
+    function reset(els,data,opts,el) {
+        els.each(function(i,o) {
+            // remove via DOM calls so we don't lose event handlers
+            if (this.parentNode)
+                this.parentNode.removeChild(this);
+        });
+
+        if (data && data.el) {
+            data.el.style.display = data.display;
+            data.el.style.position = data.position;
+            if (data.parent)
+                data.parent.appendChild(data.el);
+            $(el).removeData('blockUI.history');
+        }
+
+        if (typeof opts.onUnblock == 'function')
+            opts.onUnblock(el,opts);
+    };
+
+    // bind/unbind the handler
+    function bind(b, el, opts) {
+        var full = el == window, $el = $(el);
+
+        // don't bother unbinding if there is nothing to unbind
+        if (!b && (full && !pageBlock || !full && !$el.data('blockUI.isBlocked')))
+            return;
+        if (!full)
+            $el.data('blockUI.isBlocked', b);
+
+        // don't bind events when overlay is not in use or if bindEvents is false
+        if (!opts.bindEvents || (b && !opts.showOverlay))
+            return;
+
+        // bind anchors and inputs for mouse and key events
+        var events = 'mousedown mouseup keydown keypress';
+        b ? $(document).bind(events, opts, handler) : $(document).unbind(events, handler);
+
+    // former impl...
+    //	   var $e = $('a,:input');
+    //	   b ? $e.bind(events, opts, handler) : $e.unbind(events, handler);
+    };
+
+    // event handler to suppress keyboard/mouse events when blocking
+    function handler(e) {
+        // allow tab navigation (conditionally)
+        if (e.keyCode && e.keyCode == 9) {
+            if (pageBlock && e.data.constrainTabKey) {
+                var els = pageBlockEls;
+                var fwd = !e.shiftKey && e.target == els[els.length-1];
+                var back = e.shiftKey && e.target == els[0];
+                if (fwd || back) {
+                    setTimeout(function(){
+                        focus(back)
+                        },10);
+                    return false;
+                }
+            }
+        }
+        // allow events within the message content
+        if ($(e.target).parents('div.blockMsg').length > 0)
+            return true;
+
+        // allow events for content that is not being blocked
+        return $(e.target).parents().children().filter('div.blockUI').length == 0;
+    };
+
+    function focus(back) {
+        if (!pageBlockEls)
+            return;
+        var e = pageBlockEls[back===true ? pageBlockEls.length-1 : 0];
+        if (e)
+            e.focus();
+    };
+
+    function center(el, x, y) {
+        var p = el.parentNode, s = el.style;
+        var l = ((p.offsetWidth - el.offsetWidth)/2) - sz(p,'borderLeftWidth');
+        var t = ((p.offsetHeight - el.offsetHeight)/2) - sz(p,'borderTopWidth');
+        if (x) s.left = l > 0 ? (l+'px') : '0';
+        if (y) s.top  = t > 0 ? (t+'px') : '0';
+    };
+
+    function sz(el, p) {
+        return parseInt($.css(el,p))||0;
+    };
+
+})(jQuery);
+
+/* Copyright (c) 2006 Brandon Aaron (http://brandonaaron.net)
+ * Dual licensed under the MIT (http://www.opensource.org/licenses/mit-license.php)
+ * and GPL (http://www.opensource.org/licenses/gpl-license.php) licenses.
+ *
+ * $LastChangedDate: 2007-07-21 18:45:56 -0500 (Sat, 21 Jul 2007) $
+ * $Rev: 2447 $
+ *
+ * Version 2.1.1
+ */
+(function($){
+    $.fn.bgIframe=$.fn.bgiframe=function(s){
+        if($.browser.msie&&/6.0/.test(navigator.userAgent)){
+            s=$.extend({
+                top:'auto',
+                left:'auto',
+                width:'auto',
+                height:'auto',
+                opacity:true,
+                src:'javascript:false;'
+            },s||{});var prop=function(n){
+                return n&&n.constructor==Number?n+'px':n;
+            },html='<iframe class="bgiframe"frameborder="0"tabindex="-1"src="'+s.src+'"'+'style="display:block;position:absolute;z-index:-1;'+(s.opacity!==false?'filter:Alpha(Opacity=\'0\');':'')+'top:'+(s.top=='auto'?'expression(((parseInt(this.parentNode.currentStyle.borderTopWidth)||0)*-1)+\'px\')':prop(s.top))+';'+'left:'+(s.left=='auto'?'expression(((parseInt(this.parentNode.currentStyle.borderLeftWidth)||0)*-1)+\'px\')':prop(s.left))+';'+'width:'+(s.width=='auto'?'expression(this.parentNode.offsetWidth+\'px\')':prop(s.width))+';'+'height:'+(s.height=='auto'?'expression(this.parentNode.offsetHeight+\'px\')':prop(s.height))+';'+'"/>';return this.each(function(){
+              if($('> iframe.bgiframe', this).size() == 0) {
+                $(html).insertBefore($(this.firstChild));
+              }
+            });
+        }return this;
+    };
+})(jQuery);
+
+//ajax file upload plugin
+
+jQuery.extend({
+
+
+    createUploadIframe: function(id, uri)
+    {
+        //create frame
+        var frameId = 'jUploadFrame' + id;
+
+        if(window.ActiveXObject) {
+            var io = document.createElement('<iframe id="' + frameId + '" name="' + frameId + '" />');
+            if(typeof uri== 'boolean'){
+                io.src = 'javascript:false';
+            }
+            else if(typeof uri== 'string'){
+                io.src = uri;
+            }
+        }
+        else {
+            var io = document.createElement('iframe');
+            io.id = frameId;
+            io.name = frameId;
+        }
+        io.style.position = 'absolute';
+        io.style.top = '-1000px';
+        io.style.left = '-1000px';
+
+        document.body.appendChild(io);
+
+        return io
+    },
+    createUploadForm: function(id, fileElementId, descriptionId)
+    {
+        //create form
+        var formId = 'jUploadForm' + id;
+        var fileId = 'jUploadFile' + id;
+        var form = $('<form  action="" method="POST" name="' + formId + '" id="' + formId + '" enctype="multipart/form-data"></form>');
+
+        var oldElement = $('#' + fileElementId);
+        var newElement = $(oldElement).clone();
+        $(oldElement).attr('id', fileId);
+        $(oldElement).before(newElement);
+        $(oldElement).appendTo(form);
+
+        var oldDesc = $('#' + descriptionId);
+        var newDesc = $(oldDesc).clone();
+        $(oldDesc).before(newDesc);
+        $(oldDesc).appendTo(form);
+
+        //set attributes
+        $(form).css('position', 'absolute');
+        $(form).css('top', '-1200px');
+        $(form).css('left', '-1200px');
+        $(form).appendTo('body');
+        return form;
+    },
+
+    ajaxFileUpload: function(s) {
+        // TODO introduce global settings, allowing the client to modify them for all requests, not only timeout
+        s = jQuery.extend({}, jQuery.ajaxSettings, s);
+        var id = new Date().getTime()
+        var form = jQuery.createUploadForm(id, s.fileElementId, s.descriptionId);
+        var io = jQuery.createUploadIframe(id, s.secureuri);
+        var frameId = 'jUploadFrame' + id;
+        var formId = 'jUploadForm' + id;
+        // Watch for a new set of requests
+        if ( s.global && ! jQuery.active++ )
+        {
+            jQuery.event.trigger( "ajaxStart" );
+        }
+        var requestDone = false;
+        // Create the request object
+        var xml = {}
+        if ( s.global )
+            jQuery.event.trigger("ajaxSend", [xml, s]);
+        // Wait for a response to come back
+        var uploadCallback = function(isTimeout)
+        {
+            var io = document.getElementById(frameId);
+            try
+            {
+                if(io.contentWindow)
+                {
+                    xml.responseText = io.contentWindow.document.body?io.contentWindow.document.body.innerHTML:null;
+                    xml.responseXML = io.contentWindow.document.XMLDocument?io.contentWindow.document.XMLDocument:io.contentWindow.document;
+
+                }else if(io.contentDocument)
+                {
+                    xml.responseText = io.contentDocument.document.body?io.contentDocument.document.body.innerHTML:null;
+                    xml.responseXML = io.contentDocument.document.XMLDocument?io.contentDocument.document.XMLDocument:io.contentDocument.document;
+                }
+            }catch(e)
+            {
+                jQuery.handleError(s, xml, null, e);
+            }
+            if ( xml || isTimeout == "timeout")
+            {
+                requestDone = true;
+                var status;
+                try {
+                    status = isTimeout != "timeout" ? "success" : "error";
+                    // Make sure that the request was successful or notmodified
+                    if ( status != "error" )
+                    {
+                        // process the data (runs the xml through httpData regardless of callback)
+                        var data = jQuery.uploadHttpData( xml, s.dataType );
+                        // If a local callback was specified, fire it and pass it the data
+                        if ( s.success )
+                            s.success( data, status );
+
+                        // Fire the global callback
+                        if( s.global )
+                            jQuery.event.trigger( "ajaxSuccess", [xml, s] );
+                    } else
+                        jQuery.handleError(s, xml, status);
+                } catch(e)
+                {
+                    status = "error";
+                    jQuery.handleError(s, xml, status, e);
+                }
+
+                // The request was completed
+                if( s.global )
+                    jQuery.event.trigger( "ajaxComplete", [xml, s] );
+
+                // Handle the global AJAX counter
+                if ( s.global && ! --jQuery.active )
+                    jQuery.event.trigger( "ajaxStop" );
+
+                // Process result
+                if ( s.complete )
+                    s.complete(xml, status);
+
+                jQuery(io).unbind()
+
+                setTimeout(function()
+                {
+                    try
+
+                    {
+                        $(io).remove();
+                        $(form).remove();
+
+                    } catch(e)
+                    {
+                        jQuery.handleError(s, xml, null, e);
+                    }
+
+                }, 100)
+
+                xml = null
+
+            }
+        }
+        // Timeout checker
+        if ( s.timeout > 0 )
+        {
+            setTimeout(function(){
+                // Check to see if the request is still happening
+                if( !requestDone ) uploadCallback( "timeout" );
+            }, s.timeout);
+        }
+        try
+        {
+            // var io = $('#' + frameId);
+            var form = $('#' + formId);
+            $(form).attr('action', s.url);
+            $(form).attr('method', 'POST');
+            $(form).attr('target', frameId);
+            if(form.encoding)
+            {
+                form.encoding = 'multipart/form-data';
+            }
+            else
+            {
+                form.enctype = 'multipart/form-data';
+            }
+            $(form).submit();
+
+        } catch(e)
+        {
+            jQuery.handleError(s, xml, null, e);
+        }
+        if(window.attachEvent){
+            document.getElementById(frameId).attachEvent('onload', uploadCallback);
+        }
+        else{
+            document.getElementById(frameId).addEventListener('load', uploadCallback, false);
+        }
+        return {
+            abort: function () {}
+            };
+
+    },
+
+    uploadHttpData: function( r, type ) {
+        var data = !type;
+        data = type == "xml" || data ? r.responseXML : r.responseText;
+        // If the type is "script", eval it in global context
+        if ( type == "script" )
+            jQuery.globalEval( data );
+        // Get the JavaScript object, if JSON is used.
+        if ( type == "json" )
+            eval( "data = " + data );
+        // evaluate scripts within html
+        if ( type == "html" )
+            jQuery("<div>").html(data).evalScripts();
+        //alert($('param', data).each(function(){alert($(this).attr('value'));}));
+        return data;
+    }
+})

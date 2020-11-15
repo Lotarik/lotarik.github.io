@@ -1,0 +1,196 @@
+var nodeIdToModify = null;
+var dialogExists = false;
+var drugIdToUpdate = null;
+
+function ajaxLink(link, callbackFunction) {
+  $.blockUI();
+  
+  if(typeof link !== "string") {
+    link.search += (link.search.length == 0 ? "?" : "&") + "r=ajax&json=1";
+    link = link.href;
+  }
+  
+  $.ajax({
+    type: "GET",
+    url: link,
+    timeout: (1000 * 25),
+    success: function(msg) {
+      handleAjaxResponse(msg, callbackFunction);
+    },
+    error: function(objAJAXRequest, strError) {
+      $.unblockUI();
+      alert("Error! Type: " + strError);
+    }
+  }); 
+}
+
+function callPostAction(action, params, callbackFunction) {
+  $.blockUI();
+  
+  $.ajax({
+    type: "POST",
+    url: "index.php?r=ajax&json=1&act=" + action,
+    data: params,
+    timeout: (1000 * 25),
+    success: function(msg) {
+      handleAjaxResponse(msg, callbackFunction);
+    },
+    error: function(objAJAXRequest, strError) {
+      $.unblockUI();
+      alert("Error! Type: " + strError);
+    }
+  });
+}
+
+function callServerAction(action, params, callbackFunction) {
+  $.blockUI();
+  var urlString = "index.php?r=ajax&json=1&act=" + action;
+  //var data = "arguments=" + $.toJSON(parameters);
+  // rucne escapneme & a +
+  //data = data.replace(new RegExp("\\+", "g"), "%2B").replace(new RegExp("\\&", "g"), "%26");
+
+  var data = { args: params };
+  
+  $.ajax({
+    type: "POST",
+    url: urlString,
+    data: data,
+    timeout: (1000 * 25),
+    success: function(msg) {
+      handleAjaxResponse(msg, callbackFunction);
+    },
+    error: function(objAJAXRequest, strError) {
+      $.unblockUI();
+      alert("Error! Type: " + strError);
+    }
+  });
+}
+
+function handleAjaxResponse(msg, callbackFunction) {
+  response = $.parseJSON(msg);
+
+  // do some other stuff with response e.g. response.title to change title, 
+  // response.message to show message etc...
+  if (response.redirect) {
+    window.onbeforeunload= false;
+    location.href = response.redirect;
+    return;
+  }
+  
+  if(response.reload) {
+    window.onbeforeunload= false;
+    location.reload();
+    return;
+  }
+
+  $.unblockUI();
+
+  if (response.message != undefined) {
+    showDialog(
+      response.message[0], 
+      response.message[1], 
+      response.message[2], 
+      response.message[3], 
+      response.message[4]);
+  }
+
+  if (response.updatePanels != undefined) {
+    for (var i = 0; i < response.updatePanels.length; i++) {
+      //remove elements with class + 'upTmp'
+      $('.' + response.updatePanels[i][0] + 'upTmp').remove();
+      //replace element by ID or just it's content
+      if (response.updatePanels[i][2] == false)
+        $('#' + response.updatePanels[i][0]).html(response.updatePanels[i][1]);
+      else
+        $('#' + response.updatePanels[i][0]).replaceWith(response.updatePanels[i][1]);
+    }
+  }
+
+  //response.html
+  if (response.data != null && callbackFunction && Function == callbackFunction.constructor) {
+    callbackFunction(response.data);
+  }
+}
+
+function showDialog(title, content, p_width, p_height, buttons) {
+  try {
+    $('#popupContainer').dialog('destroy');
+  } catch (err) {}
+
+  $('#popupContainer').html(content);
+
+  //options
+  var conf = {
+    title: title
+  };
+  if (p_width > 0)
+    conf.width = p_width;
+  if (p_height > 0)
+    conf.height = p_height;
+
+  $('#popupContainer').dialog(conf);
+
+  if ($.isArray(buttons)) {
+    var btns = new Object();
+    for (var i = 0; i < buttons.length; i++) {
+      var mscript = buttons[i].script;
+      btns[buttons[i].label] = function() {
+        eval(mscript)
+      };
+    }
+    $('#popupContainer').dialog('option', 'buttons', btns);
+  }
+
+
+  $('#popupContainer').dialog('open');
+}
+
+function closeDialog() {
+  try {
+    $('#popupContainer').dialog('destroy');
+  } catch (err) {}
+}
+
+function updateXmlApplicationForm(callback) {
+  return function(xmlPart) {
+    if (xmlPart != '') {
+      xmlPage.updateXmlNodeById(nodeIdToModify, xmlPart);
+    }
+    if (nodeIdToModify == 1) {
+      new_freecap();
+      $('#word').val('');
+    }
+    
+    if(callback) callback(xmlPart);
+  }
+}
+
+function new_freecap() {
+  // nahra novy obrazok
+  if (document.getElementById("freecap")) {
+    var freecapObj = document.getElementById("freecap");
+    if (freecapObj !== null) {
+      // odpise hodnotu obrazku z adresy URL obrazku
+      thesrc = freecapObj.src;
+      thesrc = thesrc.substring(0, thesrc.lastIndexOf(".") + 4);
+      // prirad rozne cislo do URL obrazku
+      freecapObj.src = thesrc + "?" + Math.round(Math.random() * 100000);
+    }
+  }
+}
+
+function saveXmlDoc(actionName, callback) {
+  actionName = actionName || "EskadraCommit";
+
+  var args = new Array();
+  // xmlData
+  nodeIdToModify = 1;
+  args.push(xmlPage.getXmlNodeById(nodeIdToModify))
+  
+  if ($("#word").size() > 0) {
+    args.push($("#word").val());
+  }    
+
+  //console.log(xmlFormData);
+  callServerAction(actionName, args, updateXmlApplicationForm(callback));
+}

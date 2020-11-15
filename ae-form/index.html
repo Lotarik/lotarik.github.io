@@ -1,0 +1,501 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<!-- saved from url=(0121)https://portal.sukl.sk/eskadra/?act=EskadraNew&mId=2&fbclid=IwAR2skv9oO-5c0RsC3V8fmhEBzPhUnoZGGbACQhpqh-_QALeTRgqjQpCY0MI -->
+<html xmlns="http://www.w3.org/1999/xhtml"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>eSKadra</title>
+    <!-- META -->
+    
+    <meta name="keywords" content="eVarSymbol, ">
+    <meta name="description" content="eVarSymbol, ">
+    <meta name="RATING" content="General">
+    <meta name="ROBOTS" content="index,follow">
+    <meta name="REVISIT-AFTER" content="2 weeks">
+    <meta http-equiv="Content-Language" content="sk">
+
+    <link type="text/css" rel="stylesheet" href="./eSKadra_files/main.css">
+    <link type="text/css" rel="stylesheet" href="./eSKadra_files/sentence.css">
+    <link type="text/css" rel="stylesheet" href="./eSKadra_files/jquery-ui-1.7.2.custom.css">
+
+    <script type="text/javascript" src="./eSKadra_files/jquery-1.7.2.min.js.download"></script>
+    <script type="text/javascript" src="./eSKadra_files/jquery-ui-1.7.2.min.js.download"></script>
+    <!--script type="text/javascript" src="Common/jquery.hotkeys-0.7.8.js"></script-->
+    <script type="text/javascript" src="./eSKadra_files/jquery.timers.js.download"></script>
+    <script type="text/javascript" src="./eSKadra_files/jquery.scrollTo.js.download"></script>
+    <script type="text/javascript" src="./eSKadra_files/jquery.autocomplete.js.download"></script>
+    <script type="text/javascript" src="./eSKadra_files/jquery.blockui.js.download"></script>    
+
+    <script type="text/javascript" src="./eSKadra_files/system-lib.js.download"></script> 
+    <script type="text/javascript" src="./eSKadra_files/xmldoc-3.1.js.download"></script>
+    <script type="text/javascript" src="./eSKadra_files/xmldoc-scripting.js.download"></script>
+    <script type="text/javascript" src="./eSKadra_files/country.js.download"></script>         
+    <script type="text/javascript" src="./eSKadra_files/suggest.js.download"></script>
+    <script type="text/javascript">
+      //settings for popup
+      $.ui.dialog.defaults.bgiframe = true;
+      $.ui.dialog.defaults.modal = true;
+      $.ui.dialog.defaults.resizable = false;
+      $.ui.dialog.defaults.draggable = true;
+    </script>
+  </head>
+  <body>
+    <!--TOP LOGO-->
+    <div id="top_logo">
+      <div class="first"><a href="http://www.sukl.sk/" title="ŠÚKL"><img src="./eSKadra_files/sukl_logo.gif" alt="ŠÚKL"></a></div>
+    </div>
+    <!--TOP LOGO-->
+
+    <!--MAIN PARTS OF TEMPLATE-->
+    <div class="main_frame">
+      <div class="background1">
+        <!--LEFT MENU-->
+        <div class="left_menu">
+          <div id="left_menu_bkg">
+            <div class="top_right_corner">
+              <div class="bottom_left_corner">
+                <div id="left_menu">
+                  <ul class="sekcia">
+        <li>
+        <a href="https://portal.sukl.sk/eskadra/?act=EskadraMain&amp;mId=1" title="Úvod">
+    Úvod        </a>
+    </li>
+    <li class="sel">
+        <a href="https://portal.sukl.sk/eskadra/?act=EskadraNew&amp;mId=2" title="Hlásenie pacienta">
+    Hlásenie pacienta        </a>
+    </li>
+    <li>
+        <a href="https://portal.sukl.sk/eskadra/?act=EskadraNewAdv&amp;mId=3" title="Hlásenie lekára, lekárnika">
+    Hlásenie lekára, lekárnika        </a>
+    </li>
+    <li>
+        <a href="https://portal.sukl.sk/eskadra/?act=EskadraContent&amp;mId=4" title="Informácia o postupe">
+    Informácia o postupe        </a>
+    </li>
+</ul>                </div>
+                <hr>
+                <div id="left_menu2">
+                                    <p style="margin:30px 0px 0px 22px">e-mail: <strong>nul@sukl.sk</strong></p>
+                </div>
+                <a style="margin:0px 0px 0px 22px" href="https://portal.sukl.sk/eskadra/?act=EskadraNew&amp;fbclid=IwAR2skv9oO-5c0RsC3V8fmhEBzPhUnoZGGbACQhpqh-_QALeTRgqjQpCY0MI&amp;lang=en">English version</a>                                    
+              </div>
+            </div>
+          </div>
+        </div>
+        <!--LEFT MENU-->
+
+        <!--MIDDLE PART-->
+        <div class="main_home_eskadra">
+          <div class="title"><span class="Eskadra"><span><span>Hlásenie podozrenia na nežiaduci účinok lieku</span></span></span></div>
+          <div id="mainContentEskadra">
+          <!-- #20190409 -->
+<script type="text/javascript">
+  var xmlPage = new XMLPage('eskadra', {
+    xsl: 'Common/eskadra_er3.xsl?20191003', // cesta ku šablone
+    source_id: 'xmldata', // id elementu v ktorom sa nachádzajú
+    source_format: 'base64', // formát v ktorom sa xml dáta nachádzajú
+    result_id: 'xmlFormContainer', // id elementu do ktorého vykreslí formulár
+    url: 'index.php?act=EskadraCommit', // adresa na ktorú sa odošle xml na spracovanie
+    save_as_url: 'index.php?act=EskadraSaveAs', // adresa na ktorú sa odošle xml pre stiahnutie na disk    
+    print_url: 'index.php?act=EskadraPrint', // adresa na ktorú sa odošle xml pre vytlačenie   
+    action_handler: function(status, input) { // callback sa volá pri response so <status> kódom
+      switch(status) {
+        // default vypíše hlášku v alert okne
+        default:
+          alert(status);
+          return false;
+          break;
+        // pri prázdnom statuse sa vráti true
+        case '':
+          return true;
+          break;
+        // vyvolá zavretie okna
+        case 'close_window':
+          window.close();
+          return false;
+          break;
+      }
+    },
+    on_reload: function() {              
+      $('textarea').each(function(i){
+        AutoGrowTextArea(this)
+      });             
+      $('[isdrug]').each(function(i){
+        new Suggest(this.id, {
+          xsl: "Common/drugs.xsl?20191003",
+          paramName: "drugs",
+          timeout: 10000 
+        });
+      });
+      $('[iscountry]').each(function(i){
+        new CountryPicker(this.id);
+      });
+      $("#word").keypress(function(e) {
+        if(e.which === 10 || e.which === 13) {
+          saveXmlDoc();
+        }
+      });
+    } 
+  });
+// Script copyright (C) 2011 www.cryer.co.uk.
+function AutoGrowTextArea(textField)
+{
+  if (textField.clientHeight < textField.scrollHeight)
+  {
+    textField.style.height = textField.scrollHeight + "px";
+    if (textField.clientHeight < textField.scrollHeight)
+    {
+      textField.style.height = 
+        (textField.scrollHeight * 2 - textField.clientHeight) + "px";
+    }
+  }
+};
+</script>
+
+<div id="xmlFormContainer">
+<h1><div class="left">Formulár hlásenia</div></h1><table><tbody><tr><td>
+<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>Označené položky musia byť vyplnené<span> - </span><span class="error" title="Chybná hodnota">!</span>Označené položky sú vyplnené nesprávne</td></tr></tbody></table><form name="form_sentence" method="post" action="https://portal.sukl.sk/weSKadra/weSKadra_commit.php">
+<div class="block">
+<div class="headerBlock">
+<div class="left">Kontaktné údaje odosielateľa</div>
+<div class="left"></div>
+<div class="clear"></div>
+</div>
+<div class="fLeftBlock"><table><tbody>
+<tr>
+<td class="fLabel" title="C2r11">Titul</td>
+<td><input type="text" class="" id="30" name="30" value="" maxlength="50" onchange="xmlPage.modifyItem(&#39;30&#39;);" onblur="xmlPage.lostFocus(event,&#39;30&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="C2r12">Meno</td>
+<td><input type="text" class="" id="31" name="31" value="" maxlength="35" onchange="xmlPage.modifyItem(&#39;31&#39;);" onblur="xmlPage.lostFocus(event,&#39;31&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="C2r14">Priezvisko<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>
+</td>
+<td><input type="text" class="" id="33" name="33" value="" maxlength="50" onchange="xmlPage.modifyItem(&#39;33&#39;);" onblur="xmlPage.lostFocus(event,&#39;33&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="C2r27">Telefón</td>
+<td><input type="text" class="" id="41" name="41" value="" maxlength="50" onchange="xmlPage.modifyItem(&#39;41&#39;);" onblur="xmlPage.lostFocus(event,&#39;41&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="C2r2x1">Email<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>
+</td>
+<td><input type="text" class="" id="42" name="42" value="" maxlength="50" onchange="xmlPage.modifyItem(&#39;42&#39;);" onblur="xmlPage.lostFocus(event,&#39;42&#39;);" placeholder=""></td>
+</tr>
+</tbody></table></div>
+<div class="fRightBlock"><table><tbody>
+<tr>
+<td class="fLabel" title="C2r23">Ulica a číslo</td>
+<td><input type="text" class="" id="37" name="37" value="" maxlength="100" onchange="xmlPage.modifyItem(&#39;37&#39;);" onblur="xmlPage.lostFocus(event,&#39;37&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="C2r26">PSČ</td>
+<td><input type="text" class="zip" id="40" name="40" value="" maxlength="15" onchange="xmlPage.modifyItem(&#39;40&#39;);" onblur="xmlPage.lostFocus(event,&#39;40&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="C2r24">Mesto<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>
+</td>
+<td><input type="text" class="" id="38" name="38" value="" maxlength="35" onchange="xmlPage.modifyItem(&#39;38&#39;);" onblur="xmlPage.lostFocus(event,&#39;38&#39;);" placeholder=""></td>
+</tr>
+</tbody></table></div>
+<div class="clear"></div>
+</div>
+<div class="block">
+<div class="headerBlock">
+<div class="left">Informácie o pacientovi</div>
+<div class="left"></div>
+<div class="clear"></div>
+</div>
+<div class="fLeftBlock"><table><tbody>
+<tr>
+<td class="fLabel" title="D1">Prvé písmená mena a priezviska (iniciály)<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>
+</td>
+<td><input type="text" class="" id="76" name="76" value="" maxlength="10" onchange="xmlPage.modifyItem(&#39;76&#39;);" onblur="xmlPage.lostFocus(event,&#39;76&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="D21">Dátum narodenia</td>
+<td><input type="text" class="" id="83" name="83" value="" maxlength="16" onchange="xmlPage.modifyItem(&#39;83&#39;);" onblur="xmlPage.lostFocus(event,&#39;83&#39;);" placeholder="dd.mm.rrrr"></td>
+</tr>
+<tr>
+<td class="fLabel" title="D22a">Vek</td>
+<td>
+<input type="text" class="date" id="87" name="87" value="" maxlength="5" onchange="xmlPage.modifyItem(&#39;87&#39;);" onblur="xmlPage.lostFocus(event,&#39;87&#39;);" placeholder=""><select class="dateFormat" name="88" id="88" onchange="xmlPage.modifyCombo(&#39;88&#39;);" onblur="xmlPage.lostFocus(event,&#39;88&#39;);"><option value=""></option>
+<option value="{decade}">dekáda</option>
+<option value="a">rok</option>
+<option value="d">deň</option>
+<option value="h">hodina</option>
+<option value="mo">mesiac</option>
+<option value="wk">týždeň</option></select>
+</td>
+</tr>
+</tbody></table></div>
+<div class="fRightBlock"><table><tbody>
+<tr>
+<td class="fLabel" title="D3">Hmotnosť [kg]</td>
+<td><input type="text" class="" id="90" name="90" value="" maxlength="3" onchange="xmlPage.modifyItem(&#39;90&#39;);" onblur="xmlPage.lostFocus(event,&#39;90&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="D4">Výška [cm]</td>
+<td><input type="text" class="" id="91" name="91" value="" maxlength="3" onchange="xmlPage.modifyItem(&#39;91&#39;);" onblur="xmlPage.lostFocus(event,&#39;91&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="D5">Pohlavie</td>
+<td><select class="select" name="92" id="92" onchange="xmlPage.modifyCombo(&#39;92&#39;);" onblur="xmlPage.lostFocus(event,&#39;92&#39;);"><option value=""></option>
+<option value="1">muž</option>
+<option value="2">žena</option></select></td>
+</tr>
+</tbody></table></div>
+<div class="clear"></div>
+</div>
+<div class="block">
+<div class="headerBlock">
+<div class="left">Informácie o nežiaducej reakcii</div>
+<div class="left"></div>
+<div class="clear"></div>
+</div>
+<div class="fFullBlock"><table><tbody><tr>
+<td width="15%">Opis nežiaducej reakcie<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>
+</td>
+<td><textarea name="209" id="209" style="width:98%" maxlength="250" rows="1" onchange="xmlPage.modifyItem(&#39;209&#39;);" onblur="xmlPage.lostFocus(&#39;209&#39;);" value=""></textarea></td>
+</tr></tbody></table></div>
+<div class="fLeftBlock"><table><tbody>
+<tr>
+<td class="fLabel" title="Ei7">Priebeh/ výsledok reakcie<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>
+</td>
+<td><select class="select" name="228" id="228" onchange="xmlPage.modifyCombo(&#39;228&#39;);" onblur="xmlPage.lostFocus(event,&#39;228&#39;);"><option value=""></option>
+<option value="0">neznáme</option>
+<option value="1">zotavený/uzdravený</option>
+<option value="2">zotavujúci sa/uzdravujúci sa</option>
+<option value="3">nezotavený/neuzdravený</option>
+<option value="4">zotavený/uzdravený s následkami</option>
+<option value="5">fatálny/smrteľný</option></select></td>
+</tr>
+<tr>
+<td class="fLabel" title="Ei6a">Trvanie nežiaducej reakcie</td>
+<td>
+<input type="text" class="date" id="226" name="226" value="" maxlength="8" onchange="xmlPage.modifyItem(&#39;226&#39;);" onblur="xmlPage.lostFocus(event,&#39;226&#39;);" placeholder=""><select class="dateFormat" name="227" id="227" onchange="xmlPage.modifyCombo(&#39;227&#39;);" onblur="xmlPage.lostFocus(event,&#39;227&#39;);"><option value=""></option>
+<option value="{asnecessary}">Podľa potreby</option>
+<option value="{cyclical}">Cyklicky</option>
+<option value="{total}">Celkom</option>
+<option value="{trimester}">Trimester</option>
+<option value="10.a">Dekáda</option>
+<option value="a">Rok</option>
+<option value="d">Deň</option>
+<option value="h">Hodina</option>
+<option value="min">Minúta</option>
+<option value="mo">Mesiac</option>
+<option value="s">Sekunda</option>
+<option value="wk">Týždeň</option></select>
+</td>
+</tr>
+</tbody></table></div>
+<div class="fRightBlock"><table><tbody>
+<tr>
+<td class="fLabel" title="Ei4">Dátum vzniku nežiaducej reakcie</td>
+<td><input type="text" class="" id="224" name="224" value="" maxlength="16" onchange="xmlPage.modifyItem(&#39;224&#39;);" onblur="xmlPage.lostFocus(event,&#39;224&#39;);" placeholder="dd.mm.rrrr alebo mm.rrrr alebo rrrr"></td>
+</tr>
+<tr>
+<td class="fLabel" title="Ei5">Dátum skončenia nežiaducej reakcie</td>
+<td><input type="text" class="" id="225" name="225" value="" maxlength="16" onchange="xmlPage.modifyItem(&#39;225&#39;);" onblur="xmlPage.lostFocus(event,&#39;225&#39;);" placeholder="dd.mm.rrrr alebo mm.rrrr alebo rrrr"></td>
+</tr>
+</tbody></table></div>
+<div class="clear"></div>
+<div class="headerBlock">
+<div class="right">&nbsp;(<a class="addButton" id="addnew" name="Add" value="Add" href="https://portal.sukl.sk/eskadra/?act=EskadraNew&amp;mId=2&amp;fbclid=IwAR2skv9oO-5c0RsC3V8fmhEBzPhUnoZGGbACQhpqh-_QALeTRgqjQpCY0MI#" onclick="xmlPage.addNew(&#39;207&#39;);return false;">Pridať ďalšiu reakciu</a>)</div>
+<div class="clear"></div>
+</div>
+</div>
+<div class="block">
+<div class="headerBlock">
+<div class="left">Vyznačte, ak nežiaduca reakcia viedla k niektorej z uvedených situácií (alebo nechajte prázdne):</div>
+<div class="clear"></div>
+</div>
+<div class="fLeftBlock"><table><tbody>
+<tr><td title="Ei32a">
+<input type="checkbox" name="218" id="218" class="fCheckbox" onclick="xmlPage.modifyCheckbox(&#39;218&#39;);xmlPage.reloadDocument();" onblur="xmlPage.lostFocus(event,&#39;218&#39;);">úmrtie</td></tr>
+<tr><td title="Ei32b">
+<input type="checkbox" name="219" id="219" class="fCheckbox" onclick="xmlPage.modifyCheckbox(&#39;219&#39;);xmlPage.reloadDocument();" onblur="xmlPage.lostFocus(event,&#39;219&#39;);">priame ohrozenie života</td></tr>
+<tr><td title="Ei32c">
+<input type="checkbox" name="220" id="220" class="fCheckbox" onclick="xmlPage.modifyCheckbox(&#39;220&#39;);xmlPage.reloadDocument();" onblur="xmlPage.lostFocus(event,&#39;220&#39;);">účinok vedúci k hospitalizácii alebo jej predĺženiu</td></tr>
+</tbody></table></div>
+<div class="fRightBlock"><table><tbody>
+<tr><td title="Ei32d">
+<input type="checkbox" name="221" id="221" class="fCheckbox" onclick="xmlPage.modifyCheckbox(&#39;221&#39;);xmlPage.reloadDocument();" onblur="xmlPage.lostFocus(event,&#39;221&#39;);">zdravotné postihnutie/ závažná porucha funkcie</td></tr>
+<tr><td title="Ei32e">
+<input type="checkbox" name="222" id="222" class="fCheckbox" onclick="xmlPage.modifyCheckbox(&#39;222&#39;);xmlPage.reloadDocument();" onblur="xmlPage.lostFocus(event,&#39;222&#39;);">trvalé poškodenie pacienta (vrodená odchýlka/ znetvorenie)</td></tr>
+<tr><td title="Ei32f">
+<input type="checkbox" name="223" id="223" class="fCheckbox" onclick="xmlPage.modifyCheckbox(&#39;223&#39;);xmlPage.reloadDocument();" onblur="xmlPage.lostFocus(event,&#39;223&#39;);">išlo o iný medicínsky posúdený významný stav</td></tr>
+</tbody></table></div>
+<div class="clear"></div>
+</div>
+<div class="block">
+<div class="headerBlock">
+<div class="left">Informácie o liekoch</div>
+<div class="left"></div>
+<div class="clear"></div>
+</div>
+<div class="fLeftBlock"><table><tbody>
+<tr>
+<td class="fLabel" title="Gk1">Vzťah lieku k reakcii<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>
+</td>
+<td><select class="select" name="251" id="251" onchange="xmlPage.modifyCombo(&#39;251&#39;);" onblur="xmlPage.lostFocus(event,&#39;251&#39;);"><option value=""></option>
+<option value="1">liek pravdepodobne spôsobujúci reakciu</option>
+<option value="2">súčasne podávaný liek</option>
+<option value="3">liek ovplyvňujúci účinok iného lieku</option>
+<option value="4">liek nebol podaný</option></select></td>
+</tr>
+<tr>
+<td class="fLabel" title="Gk22">Názov lieku<span class="error" title="
+    [xmlform_error_mandatory]
+  ">*</span>
+</td>
+<td><input type="text" class="" id="258" name="258" value="" maxlength="70" isdrug="1" onchange="xmlPage.modifyItem(&#39;258&#39;);xmlPage.modifyItem(&#39;281&#39;,&#39;&#39;);" onblur="xmlPage.lostFocus(event,&#39;258&#39;);" autocomplete="off"></td>
+</tr>
+<tr>
+<td class="fLabel" title="Gk4r7">Číslo šarže (č.š./ Lot)</td>
+<td><input type="text" class="" id="295" name="295" value="" maxlength="35" onchange="xmlPage.modifyItem(&#39;295&#39;);" onblur="xmlPage.lostFocus(event,&#39;295&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="Gk7r1">Indikácia/ na čo sa liek použil</td>
+<td><input type="text" class="" id="314" name="314" value="" maxlength="250" onchange="xmlPage.modifyItem(&#39;314&#39;);" onblur="xmlPage.lostFocus(event,&#39;314&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="Gk8">Činnosť vykonaná s liekom (čo sa urobilo s liekom?)</td>
+<td><select class="select" name="319" id="319" onchange="xmlPage.modifyCombo(&#39;319&#39;);" onblur="xmlPage.lostFocus(event,&#39;319&#39;);"><option value=""></option>
+<option value="0">neznáme</option>
+<option value="1">liek sa prestal podávať</option>
+<option value="2">dávka lieku bola znížená</option>
+<option value="3">dávka lieku bola zvýšená</option>
+<option value="4">dávka lieku sa nezmenila</option>
+<option value="9">ani jedna z možností</option></select></td>
+</tr>
+</tbody></table></div>
+<div class="fRightBlock"><table><tbody>
+<tr>
+<td class="fLabel" title="Gk4r8">Dávkovanie lieku</td>
+<td><input type="text" class="" id="296" name="296" value="" maxlength="100" onchange="xmlPage.modifyItem(&#39;296&#39;);" onblur="xmlPage.lostFocus(event,&#39;296&#39;);" placeholder=""></td>
+</tr>
+<tr>
+<td class="fLabel" title="Gk4r4">Začiatok užívania</td>
+<td><input type="text" class="" id="291" name="291" value="" maxlength="16" onchange="xmlPage.modifyItem(&#39;291&#39;);" onblur="xmlPage.lostFocus(event,&#39;291&#39;);" placeholder="dd.mm.rrrr alebo mm.rrrr alebo rrrr"></td>
+</tr>
+<tr>
+<td class="fLabel" title="Gk4r5">Dátum posledného podania</td>
+<td><input type="text" class="" id="292" name="292" value="" maxlength="16" onchange="xmlPage.modifyItem(&#39;292&#39;);" onblur="xmlPage.lostFocus(event,&#39;292&#39;);" placeholder="dd.mm.rrrr alebo mm.rrrr alebo rrrr"></td>
+</tr>
+<tr>
+<td class="fLabel" title="Gk4r6a">Dĺžka podávania lieku</td>
+<td>
+<input type="text" class="date" id="293" name="293" value="" maxlength="5" onchange="xmlPage.modifyItem(&#39;293&#39;);" onblur="xmlPage.lostFocus(event,&#39;293&#39;);" placeholder=""><select class="dateFormat" name="294" id="294" onchange="xmlPage.modifyCombo(&#39;294&#39;);" onblur="xmlPage.lostFocus(event,&#39;294&#39;);"><option value=""></option>
+<option value="{asnecessary}">Podľa potreby</option>
+<option value="{cyclical}">Cyklicky</option>
+<option value="{total}">Celkom</option>
+<option value="{trimester}">Trimester</option>
+<option value="10.a">Dekáda</option>
+<option value="a">Rok</option>
+<option value="d">Deň</option>
+<option value="h">Hodina</option>
+<option value="min">Minúta</option>
+<option value="mo">Mesiac</option>
+<option value="s">Sekunda</option>
+<option value="wk">Týždeň</option></select>
+</td>
+</tr>
+<tr>
+<td class="fLabel" title="Gk9i4">Objavila sa reakcia po opakovanom podaní?</td>
+<td><select class="select" name="333" id="333" onchange="xmlPage.modifyCombo(&#39;333&#39;);" onblur="xmlPage.lostFocus(event,&#39;333&#39;);"><option value=""></option>
+<option value="1">áno - áno (liek bol podaný, reakcia sa opätovne objavila)</option>
+<option value="2">áno - nie (liek bol podaný, reakcia sa opätovne neobjavila)</option>
+<option value="3">áno - ? (liek bol podaný, priebeh reakcie je neznámy)</option>
+<option value="4">nie - n/a (liek nebol podaný, informácie o opätovnom objavení reakcie sú neaplikovateľné)</option></select></td>
+</tr>
+</tbody></table></div>
+<div class="clear"></div>
+<div class="headerBlock">
+<div class="right">&nbsp;(<a class="addButton" id="addnew" name="Add" value="Add" href="https://portal.sukl.sk/eskadra/?act=EskadraNew&amp;mId=2&amp;fbclid=IwAR2skv9oO-5c0RsC3V8fmhEBzPhUnoZGGbACQhpqh-_QALeTRgqjQpCY0MI#" onclick="xmlPage.addNew(&#39;250&#39;);return false;">Pridať ďalší liek</a>)</div>
+<div class="clear"></div>
+</div>
+</div>
+<div class="block">
+<div class="headerBlock">
+<div class="left">Stručný opis prípadu, vyšetrenia, liečba nežiaducej reakcie a iné dôležité informácie</div>
+<div class="left"></div>
+<div class="clear"></div>
+</div>
+<div class="fFullBlock"><textarea name="346" id="346" style="width:97.5%" maxlength="100000" cols="2" rows="10" onchange="xmlPage.modifyItem(&#39;346&#39;);" onblur="xmlPage.lostFocus(&#39;346&#39;);" value="" class="print" onkeyup="AutoGrowTextArea(this)"></textarea></div>
+</div>
+</form></div>
+<div id="message" class="message"></div>
+
+
+
+<!-- GDPR -->
+<div class="headerBlock"></div>
+<div class="block">
+  <table><tbody><tr><td>ŠÚKL spracováva a uchováva osobné údaje na základe povinnosti uvedenej v Zákone č. 362/2011 Z. z. a nie sú poskytované iným subjektom.</td></tr></tbody></table>
+</div>
+<!-- freecap -->
+<div id="freecapContainer" class="block">
+<div class="header">Potvrdenie&nbsp;údajov</div>
+<table width="90%" height="100">
+  <tbody><tr>
+  <td class="data" valign="top">
+    Odpíšte farebné písmená z obrázka<br><br>
+    <input type="text" name="word" id="word"><span class="alert">*</span><br><br>
+    <a href="https://portal.sukl.sk/eskadra/?act=EskadraNew&amp;mId=2&amp;fbclid=IwAR2skv9oO-5c0RsC3V8fmhEBzPhUnoZGGbACQhpqh-_QALeTRgqjQpCY0MI#" onclick="this.blur();new_freecap();return false;">Ak neviete prečítať, kliknite sem</a>
+  </td>
+  <td align="right">
+    <img src="./eSKadra_files/freecap.php" id="freecap" width="215" height="90" alt="freecap">
+  </td>
+  </tr>
+</tbody></table>
+</div>
+
+<br>
+
+<div style="text-align:right">
+<!--  <input type="submit" name="SaveAs" value="Uložiť v mojom počítači" onclick="xmlPage.save_as();">-->  
+  <input type="submit" name="Save" value="Odoslať" onclick="saveXmlDoc();">
+<!--  <input type="submit" name="Print" value="Vytlačiť" onclick="xmlPage.print();">-->
+</div>          </div>
+        </div>
+        <!--MIDDLE PART-->
+
+        <div class="clear">&nbsp;</div>
+        <!--RIGHT MENU-->
+      </div>
+    </div>
+    <!--MAIN PARTS OF TEMPLATE-->
+
+    <!--FOOTER -->
+    <div class="pagefooter">
+      <div class="left">
+      </div>
+      <div class="right" style="color:#999999;font-size:10px;font-weight:normal">Spracované sytémom        <a style="padding: 0px;" href="http://www.mcr.sk/" target="_blank">MCR.weSKadra  </a>
+        <span title="7.0.1">(7.0)</span>
+      </div>
+      <div class="clear">
+    </div>
+    <!--FOOTER -->
+
+    <!-- POPUP container -->
+    <div id="popupContainer" style="display:none">
+    <!-- POPUP container -->
+  
+
+      </div></div></body></html>
