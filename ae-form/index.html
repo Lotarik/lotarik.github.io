@@ -87,67 +87,6 @@
           <div class="title"><span class="Eskadra"><span><span>Hlásenie podozrenia na nežiaduci účinok lieku</span></span></span></div>
           <div id="mainContentEskadra">
           <!-- #20190409 -->
-<script type="text/javascript">
-  var xmlPage = new XMLPage('eskadra', {
-    xsl: 'eskadra_er3.xsl', // cesta ku šablone
-    source_id: 'xmldata', // id elementu v ktorom sa nachádzajú
-    source_format: 'base64', // formát v ktorom sa xml dáta nachádzajú
-    result_id: 'xmlFormContainer', // id elementu do ktorého vykreslí formulár
-    
-    
-    action_handler: function(status, input) { // callback sa volá pri response so <status> kódom
-      switch(status) {
-        // default vypíše hlášku v alert okne
-        default:
-          alert(status);
-          return false;
-          break;
-        // pri prázdnom statuse sa vráti true
-        case '':
-          return true;
-          break;
-        // vyvolá zavretie okna
-        case 'close_window':
-          window.close();
-          return false;
-          break;
-      }
-    },
-    on_reload: function() {              
-      $('textarea').each(function(i){
-        AutoGrowTextArea(this)
-      });             
-      $('[isdrug]').each(function(i){
-        new Suggest(this.id, {
-          xsl: "drugs.xsl",
-          paramName: "drugs",
-          timeout: 10000 
-        });
-      });
-      $('[iscountry]').each(function(i){
-        new CountryPicker(this.id);
-      });
-      $("#word").keypress(function(e) {
-        if(e.which === 10 || e.which === 13) {
-          saveXmlDoc();
-        }
-      });
-    } 
-  });
-// Script copyright (C) 2011 www.cryer.co.uk.
-function AutoGrowTextArea(textField)
-{
-  if (textField.clientHeight < textField.scrollHeight)
-  {
-    textField.style.height = textField.scrollHeight + "px";
-    if (textField.clientHeight < textField.scrollHeight)
-    {
-      textField.style.height = 
-        (textField.scrollHeight * 2 - textField.clientHeight) + "px";
-    }
-  }
-};
-</script>
 <div id="xmlFormContainer">
 <h1><div class="left">Formulár hlásenia</div></h1><table><tbody><tr><td>
 <span class="error" title="
@@ -313,7 +252,7 @@ function AutoGrowTextArea(textField)
 </tbody></table></div>
 <div class="clear"></div>
 <div class="headerBlock">
-<div class="right">&nbsp;(<a class="addButton" id="addnew" name="Add" value="Add" href="#" onclick="xmlPage.addNew(&#39;207&#39;);return false;">Pridať ďalšiu reakciu</a>)</div>
+<div class="right">&nbsp;(<a class="addButton" id="addnew" name="Add" value="Add" href="#" onclick="alert('Pre potreby dotazníka nie je možné kliknúť na túto položku.');">Pridať ďalšiu reakciu</a>)</div>
 <div class="clear"></div>
 </div>
 </div>
@@ -426,7 +365,7 @@ function AutoGrowTextArea(textField)
 </tbody></table></div>
 <div class="clear"></div>
 <div class="headerBlock">
-<div class="right">&nbsp;(<a class="addButton" id="addnew" name="Add" value="Add" href="#" onclick="xmlPage.addNew(&#39;250&#39;);return false;">Pridať ďalší liek</a>)</div>
+<div class="right">&nbsp;(<a class="addButton" id="addnew" name="Add" value="Add" href="#" onclick="alert('Pre potreby dotazníka nie je možné kliknúť na túto položku.');">Pridať ďalší liek</a>)</div>
 <div class="clear"></div>
 </div>
 </div>
