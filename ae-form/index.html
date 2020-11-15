@@ -86,68 +86,6 @@
           <div class="title"><span class="Eskadra"><span><span>Hlásenie podozrenia na nežiaduci účinok lieku</span></span></span></div>
           <div id="mainContentEskadra">
           <!-- #20190409 -->
-<script type="text/javascript">
-  var xmlPage = new XMLPage('eskadra', {
-    xsl: 'Common/eskadra_er3.xsl?20191003', // cesta ku šablone
-    source_id: 'xmldata', // id elementu v ktorom sa nachádzajú
-    source_format: 'base64', // formát v ktorom sa xml dáta nachádzajú
-    result_id: 'xmlFormContainer', // id elementu do ktorého vykreslí formulár
-    url: 'index.php?act=EskadraCommit', // adresa na ktorú sa odošle xml na spracovanie
-    save_as_url: 'index.php?act=EskadraSaveAs', // adresa na ktorú sa odošle xml pre stiahnutie na disk    
-    print_url: 'index.php?act=EskadraPrint', // adresa na ktorú sa odošle xml pre vytlačenie   
-    action_handler: function(status, input) { // callback sa volá pri response so <status> kódom
-      switch(status) {
-        // default vypíše hlášku v alert okne
-        default:
-          alert(status);
-          return false;
-          break;
-        // pri prázdnom statuse sa vráti true
-        case '':
-          return true;
-          break;
-        // vyvolá zavretie okna
-        case 'close_window':
-          window.close();
-          return false;
-          break;
-      }
-    },
-    on_reload: function() {              
-      $('textarea').each(function(i){
-        AutoGrowTextArea(this)
-      });             
-      $('[isdrug]').each(function(i){
-        new Suggest(this.id, {
-          xsl: "Common/drugs.xsl?20191003",
-          paramName: "drugs",
-          timeout: 10000 
-        });
-      });
-      $('[iscountry]').each(function(i){
-        new CountryPicker(this.id);
-      });
-      $("#word").keypress(function(e) {
-        if(e.which === 10 || e.which === 13) {
-          saveXmlDoc();
-        }
-      });
-    } 
-  });
-// Script copyright (C) 2011 www.cryer.co.uk.
-function AutoGrowTextArea(textField)
-{
-  if (textField.clientHeight < textField.scrollHeight)
-  {
-    textField.style.height = textField.scrollHeight + "px";
-    if (textField.clientHeight < textField.scrollHeight)
-    {
-      textField.style.height = 
-        (textField.scrollHeight * 2 - textField.clientHeight) + "px";
-    }
-  }
-};
-</script>
 
 <div id="xmlFormContainer">
 <h1><div class="left">Formulár hlásenia</div></h1><table><tbody><tr><td>
